@@ -1,0 +1,37 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# Ansible
+*.retry
+.vault_pass
+ansible_vault_*
+
+# Packer
+*.pkr.hcl.backup
+packer_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Secrets
+secrets/
+*.secret
+.env
+.env.local
+

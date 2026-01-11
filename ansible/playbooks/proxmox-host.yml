@@ -1,0 +1,53 @@
+---
+# Playbook: Configure Proxmox host
+# Purpose: Set up Proxmox VE host with required packages, storage, and network configuration
+#
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/proxmox-host.yml
+
+- name: Configure Proxmox Host
+  hosts: proxmox_hosts
+  become: yes
+  gather_facts: yes
+
+  vars:
+    # Storage configuration
+    storage_pools:
+      - name: "local-lvm"
+        type: "lvm"
+        path: "/var/lib/vz"
+    
+    # Network configuration
+    network_bridge: "vmbr0"
+    network_interface: "eth0"
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - htop
+        state: present
+
+    - name: Configure storage pools
+      # TODO: Add storage pool configuration tasks
+      debug:
+        msg: "Storage pool configuration would go here"
+
+    - name: Configure network bridges
+      # TODO: Add network bridge configuration tasks
+      debug:
+        msg: "Network bridge configuration would go here"
+
+    - name: Verify Proxmox API access
+      # TODO: Add Proxmox API verification
+      debug:
+        msg: "Proxmox API verification would go here"
+

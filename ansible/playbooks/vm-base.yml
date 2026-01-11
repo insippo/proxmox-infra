@@ -1,0 +1,60 @@
+---
+# Playbook: Configure base VM
+# Purpose: Apply common configuration to VMs (users, packages, security)
+#
+# Usage:
+#   ansible-playbook -i inventory.yml playbooks/vm-base.yml --limit vms
+
+- name: Configure Base VM
+  hosts: vms
+  become: yes
+  gather_facts: yes
+
+  vars:
+    # Base packages to install
+    base_packages:
+      - curl
+      - wget
+      - git
+      - vim
+      - htop
+      - unattended-upgrades
+
+    # User configuration
+    admin_user: "admin"
+    # admin_password: "set via vault"
+    admin_groups: "sudo"
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Install base packages
+      apt:
+        name: "{{ base_packages }}"
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Create admin user
+      # TODO: Add user creation with proper password handling
+      debug:
+        msg: "User creation would go here"
+
+    - name: Configure SSH
+      # TODO: Add SSH configuration (disable root login, key-based auth)
+      debug:
+        msg: "SSH configuration would go here"
+
+    - name: Configure firewall
+      # TODO: Add firewall rules
+      debug:
+        msg: "Firewall configuration would go here"
+
+    - name: Enable automatic security updates
+      # TODO: Configure unattended-upgrades
+      debug:
+        msg: "Automatic updates configuration would go here"
+

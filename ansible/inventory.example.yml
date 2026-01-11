@@ -1,0 +1,38 @@
+---
+# Example Ansible inventory for Proxmox infrastructure
+# Copy this file to inventory.yml and populate with your actual hosts
+
+all:
+  vars:
+    ansible_user: root
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    # Proxmox API connection
+    proxmox_api_host: "proxmox.example.com"
+    proxmox_api_user: "root@pam"
+    # proxmox_api_password: "set via vault or environment variable"
+    proxmox_api_token_id: ""
+    proxmox_api_token_secret: ""
+
+  children:
+    proxmox_hosts:
+      hosts:
+        proxmox-host-1:
+          ansible_host: "192.168.1.10"
+        proxmox-host-2:
+          ansible_host: "192.168.1.11"
+      vars:
+        # Host-level variables
+        storage_pool: "local-lvm"
+        network_bridge: "vmbr0"
+
+    vms:
+      hosts:
+        vm-example-1:
+          ansible_host: "192.168.1.100"
+        vm-example-2:
+          ansible_host: "192.168.1.101"
+      vars:
+        # VM-level variables
+        vm_user: "admin"
+        # vm_password: "set via vault"
+
