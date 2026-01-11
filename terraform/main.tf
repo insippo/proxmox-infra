@@ -113,6 +113,46 @@ resource "proxmox_vm_qemu" "monitoring_prometheus" {
   }
 }
 
+# Grafana monitoring VM (optional)
+resource "proxmox_vm_qemu" "monitoring_grafana" {
+  count       = var.monitoring_grafana_enabled ? 1 : 0
+  name        = "monitoring-grafana"
+  target_node = var.proxmox_node
+  clone       = var.base_template
+
+  # VM compute resources (minimal for monitoring)
+  cores   = var.monitoring_grafana_cores
+  sockets = var.vm_default_sockets
+  cpu     = "host"
+  memory  = var.monitoring_grafana_memory
+
+  # VM storage (from variables)
+  disk {
+    storage = var.vm_default_storage
+    type    = "scsi"
+    size    = var.monitoring_grafana_disk_size
+  }
+
+  # Network configuration (DHCP, no static IPs)
+  network {
+    model  = "virtio"
+    bridge = var.vm_default_bridge
+  }
+
+  # Cloud-init enabled for bootstrap
+  agent    = 1
+  os_type  = "cloud-init"
+
+  # Cloud-init configuration: inject SSH keys and user for Ansible access
+  ciuser     = var.cloudinit_user
+  sshkeys    = join("\n", var.cloudinit_ssh_keys)
+  ipconfig0  = "ip=dhcp"
+
+  lifecycle {
+    prevent_destroy = false
+  }
+}
+
 # Terraform outputs for dynamic Ansible inventory
 output "vms" {
   description = "VM information for Ansible dynamic inventory"
@@ -127,6 +167,13 @@ output "vms" {
     var.monitoring_prometheus_enabled ? {
       monitoring_prometheus = {
         name        = proxmox_vm_qemu.monitoring_prometheus[0].name
+        ssh_user    = var.cloudinit_user
+        ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
+      }
+    } : {},
+    var.monitoring_grafana_enabled ? {
+      monitoring_grafana = {
+        name        = proxmox_vm_qemu.monitoring_grafana[0].name
         ssh_user    = var.cloudinit_user
         ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
       }

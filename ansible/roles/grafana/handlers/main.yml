@@ -1,0 +1,8 @@
+---
+# Handlers for Grafana role
+
+- name: Restart grafana
+  ansible.builtin.service:
+    name: grafana-server
+    state: restarted
+

@@ -1,0 +1,79 @@
+---
+# Grafana role for monitoring VMs
+# Installs and configures Grafana for visualization
+# Safe to run repeatedly (idempotent)
+
+- name: Install prerequisites for Grafana repository
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - software-properties-common
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Add Grafana GPG key
+  ansible.builtin.apt_key:
+    url: https://apt.grafana.com/gpg.key
+    state: present
+  when: ansible_os_family == "Debian"
+  register: grafana_gpg_key
+  until: grafana_gpg_key is succeeded
+  retries: 3
+  delay: 5
+
+- name: Add Grafana repository
+  ansible.builtin.apt_repository:
+    repo: "deb https://apt.grafana.com stable main"
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Install Grafana package
+  ansible.builtin.apt:
+    name: grafana
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+  register: grafana_installed
+
+- name: Create Grafana datasources directory
+  ansible.builtin.file:
+    path: /etc/grafana/provisioning/datasources
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure Prometheus datasource
+  ansible.builtin.copy:
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://monitoring-prometheus:9090
+          isDefault: true
+          editable: true
+    dest: /etc/grafana/provisioning/datasources/prometheus.yml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart grafana
+
+- name: Ensure Grafana service is enabled and running
+  ansible.builtin.service:
+    name: grafana-server
+    state: started
+    enabled: true
+
+- name: Verify Grafana is listening on port 3000
+  ansible.builtin.wait_for:
+    port: 3000
+    host: localhost
+    delay: 2
+    timeout: 10
+  delegate_to: localhost
+  when: grafana_installed.changed
+

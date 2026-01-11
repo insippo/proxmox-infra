@@ -16,6 +16,8 @@
       when: docker_enabled | bool
     - role: prometheus
       when: prometheus_enabled | bool
+    - role: grafana
+      when: grafana_enabled | bool
 
   pre_tasks:
     - name: Update package cache (keeps installs fast and current)

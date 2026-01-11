@@ -19,3 +19,6 @@ docker_users: []       # List of users to add to docker group (examples only)
 # Prometheus monitoring (optional)
 prometheus_enabled: false  # Set to true to enable Prometheus on monitoring VM
 
+# Grafana monitoring (optional)
+grafana_enabled: false  # Set to true to enable Grafana on monitoring VM
+

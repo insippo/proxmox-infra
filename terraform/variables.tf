@@ -110,3 +110,27 @@ variable "monitoring_prometheus_disk_size" {
   default     = "50G"
 }
 
+variable "monitoring_grafana_enabled" {
+  description = "Enable Grafana monitoring VM"
+  type        = bool
+  default     = false
+}
+
+variable "monitoring_grafana_cores" {
+  description = "Number of CPU cores for Grafana VM"
+  type        = number
+  default     = 2
+}
+
+variable "monitoring_grafana_memory" {
+  description = "Memory allocation for Grafana VM (in MB)"
+  type        = number
+  default     = 4096
+}
+
+variable "monitoring_grafana_disk_size" {
+  description = "Disk size for Grafana VM (e.g., '20G')"
+  type        = string
+  default     = "20G"
+}
+
