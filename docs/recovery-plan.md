@@ -73,6 +73,14 @@ This document outlines procedures for recovering from infrastructure failures.
 - **Failover Procedures**: Document failover steps
 - **Communication Plan**: Define notification procedures
 
+## SSH Hardening Rollback (Proxmox hosts)
+
+- Keep console/ILO open before making SSH changes to avoid lockout
+- Restore `/etc/ssh/sshd_config` from last known-good backup or remove the hardened directives (PermitRootLogin, PasswordAuthentication, ClientAlive settings) if they caused an issue
+- Ensure an `authorized_keys` file exists before re-enabling strict settings
+- Restart sshd gracefully: `systemctl restart ssh`
+- Test a new SSH session while keeping the current session open; if successful, close the console session
+
 ## Testing
 
 - Regular disaster recovery drills

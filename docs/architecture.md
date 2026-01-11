@@ -76,3 +76,11 @@ proxmox-infra/
 └── docs/            # Documentation
 ```
 
+## SSH Policy (Proxmox hosts)
+
+- Key-based only; password authentication disabled (LAN-only access assumed)
+- Root login allowed only with keys (`PermitRootLogin prohibit-password`)
+- Keep `authorized_keys` present before applying hardening to avoid lockout
+- Client keepalives enabled (300s interval, 2 attempts) to avoid stale sessions
+- X11 and agent forwarding disabled by default
+

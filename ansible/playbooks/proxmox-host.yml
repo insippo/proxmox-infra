@@ -1,4 +1,3 @@
----
 # Playbook: Base Proxmox host configuration
 # Scope: base OS hardening and utilities only; no storage, no VMs/LXCs.
 # Safe to run repeatedly (idempotent) across multiple hosts on LAN-only SSH.
@@ -10,63 +9,6 @@
   become: true
   gather_facts: true
 
-  vars:
-    base_packages:
-      - vim
-      - curl
-      - htop
-      - ca-certificates
-      - chrony
-      - sudo
-
-    sshd_config_path: /etc/ssh/sshd_config
-
-    sshd_settings:
-      # Keep SSH key access but block password logins to avoid credential risk.
-      - option: PermitRootLogin
-        value: prohibit-password
-      # Enforce key-based auth; LAN-only but still avoid passwords.
-      - option: PasswordAuthentication
-        value: "no"
-      - option: PubkeyAuthentication
-        value: "yes"
-      - option: ChallengeResponseAuthentication
-        value: "no"
-      - option: UsePAM
-        value: "yes"
-      # Keep sessions healthy without hanging connections.
-      - option: ClientAliveInterval
-        value: "300"
-      - option: ClientAliveCountMax
-        value: "2"
-      # Shorten grace time to reduce brute-force window without locking out keys.
-      - option: LoginGraceTime
-        value: "30"
-      # Keep defaults explicit for clarity.
-      - option: X11Forwarding
-        value: "no"
-      - option: AllowAgentForwarding
-        value: "no"
-
-    sysctl_settings:
-      # Network sanity and basic hardening (no routing enablement here).
-      net.ipv4.ip_forward: 0
-      net.ipv4.conf.all.accept_redirects: 0
-      net.ipv4.conf.default.accept_redirects: 0
-      net.ipv4.conf.all.send_redirects: 0
-      net.ipv4.conf.default.send_redirects: 0
-      net.ipv4.conf.all.rp_filter: 1
-      net.ipv4.conf.default.rp_filter: 1
-      net.ipv4.tcp_syncookies: 1
-      net.ipv4.icmp_echo_ignore_broadcasts: 1
-      net.ipv4.icmp_ignore_bogus_error_responses: 1
-      net.ipv4.conf.all.log_martians: 1
-      net.ipv4.conf.default.log_martians: 1
-      # I/O safety to avoid aggressive writeback on hypervisor nodes.
-      vm.swappiness: 10
-      vm.dirty_ratio: 15
-      vm.dirty_background_ratio: 5
-
   pre_tasks:
     - name: Update package cache (keeps installs fast and current)
       ansible.builtin.apt:
@@ -75,12 +17,12 @@
 
     - name: Check for authorized_keys to avoid lockout before hardening
       ansible.builtin.stat:
-        path: /root/.ssh/authorized_keys
+        path: "{{ authorized_keys_path }}"
       register: authorized_keys_stat
 
     - name: Stop if no SSH keys are present (prevents locking out)
       ansible.builtin.fail:
-        msg: "Add at least one SSH public key to /root/.ssh/authorized_keys before applying SSH hardening."
+        msg: "Add at least one SSH public key to {{ authorized_keys_path }} before applying SSH hardening."
       when: not authorized_keys_stat.stat.exists or authorized_keys_stat.stat.size | default(0) == 0
 
   tasks:
@@ -97,7 +39,7 @@
 
     - name: (Optional) Set custom NTP servers for chrony
       ansible.builtin.debug:
-        msg: "Define chrony servers in a role/vars if needed (kept generic here)"
+        msg: "{{ chrony_note }}"
       # TODO: Add chrony.conf template once NTP sources are defined.
 
     - name: Harden SSH daemon for key-only access on LAN
@@ -115,7 +57,7 @@
       ansible.builtin.lineinfile:
         path: "{{ sshd_config_path }}"
         regexp: "^AuthorizedKeysFile\\s"
-        line: "AuthorizedKeysFile .ssh/authorized_keys"
+        line: "{{ sshd_authorized_keys_directive }}"
         state: present
         create: false
       notify: Restart sshd
@@ -144,16 +86,16 @@
 
     - name: Configure journald for persistent logging
       ansible.builtin.lineinfile:
-        path: /etc/systemd/journald.conf
+        path: "{{ journald_conf_path }}"
         regexp: "^Storage="
-        line: "Storage=persistent"
+        line: "Storage={{ journald_storage }}"
         state: present
         create: false
       notify: Restart journald
 
     - name: (Optional) Tune journald retention
       ansible.builtin.debug:
-        msg: "Set SystemMaxUse/SystemKeepFree in journald.conf when requirements are known."
+        msg: "{{ journald_retention_note }}"
       # TODO: Add retention limits when storage policy is defined.
 
   handlers:

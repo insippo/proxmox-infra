@@ -1,0 +1,64 @@
+---
+# Tunable settings for Proxmox hosts (LAN-only SSH, no storage/VM changes).
+
+# Base packages to install on each Proxmox host.
+base_packages:
+  - vim
+  - curl
+  - htop
+  - ca-certificates
+  - chrony
+  - sudo
+
+# SSH hardening (key-only access; root password login disabled).
+authorized_keys_path: /root/.ssh/authorized_keys
+sshd_config_path: /etc/ssh/sshd_config
+sshd_authorized_keys_directive: "AuthorizedKeysFile .ssh/authorized_keys"
+sshd_settings:
+  - option: PermitRootLogin
+    value: prohibit-password
+  - option: PasswordAuthentication
+    value: "no"
+  - option: PubkeyAuthentication
+    value: "yes"
+  - option: ChallengeResponseAuthentication
+    value: "no"
+  - option: UsePAM
+    value: "yes"
+  - option: ClientAliveInterval
+    value: "300"
+  - option: ClientAliveCountMax
+    value: "2"
+  - option: LoginGraceTime
+    value: "30"
+  - option: X11Forwarding
+    value: "no"
+  - option: AllowAgentForwarding
+    value: "no"
+
+# Sysctl baseline (network + I/O safety).
+sysctl_settings:
+  net.ipv4.ip_forward: 0
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+  net.ipv4.conf.all.rp_filter: 1
+  net.ipv4.conf.default.rp_filter: 1
+  net.ipv4.tcp_syncookies: 1
+  net.ipv4.icmp_echo_ignore_broadcasts: 1
+  net.ipv4.icmp_ignore_bogus_error_responses: 1
+  net.ipv4.conf.all.log_martians: 1
+  net.ipv4.conf.default.log_martians: 1
+  vm.swappiness: 10
+  vm.dirty_ratio: 15
+  vm.dirty_background_ratio: 5
+
+# Journald settings (local persistent logging).
+journald_conf_path: /etc/systemd/journald.conf
+journald_storage: persistent
+journald_retention_note: "TODO: set SystemMaxUse/SystemKeepFree when storage policy is defined."
+
+# Chrony note (kept generic until servers are defined).
+chrony_note: "Define chrony servers in group_vars when sources are known (kept generic here)."
+
