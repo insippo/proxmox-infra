@@ -31,9 +31,9 @@ provider "proxmox" {
 # This demonstrates declarative VM lifecycle management
 # All values come from variables (no hardcoded secrets or IPs)
 resource "proxmox_virtual_environment_vm" "example_vm" {
-  name        = "example-linux-vm"
-  node_name   = var.proxmox_node
-  vm_id       = null  # Auto-assign VM ID
+  name      = "example-linux-vm"
+  node_name = var.proxmox_node
+  vm_id     = null # Auto-assign VM ID
 
   # Clone from template
   clone {
@@ -64,6 +64,7 @@ resource "proxmox_virtual_environment_vm" "example_vm" {
   # Cloud-init configuration: inject SSH keys and user for Ansible access
   # This makes the VM immediately reachable by Ansible after creation
   initialization {
+    datastore_id = var.vm_default_storage
     user_account {
       username = var.cloudinit_user
       keys     = var.cloudinit_ssh_keys
@@ -86,7 +87,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_prometheus" {
   count     = var.monitoring_prometheus_enabled ? 1 : 0
   name      = "monitoring-prometheus"
   node_name = var.proxmox_node
-  vm_id     = null  # Auto-assign VM ID
+  vm_id     = null # Auto-assign VM ID
 
   # Clone from template
   clone {
@@ -116,6 +117,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_prometheus" {
 
   # Cloud-init configuration: inject SSH keys and user for Ansible access
   initialization {
+    datastore_id = var.vm_default_storage
     user_account {
       username = var.cloudinit_user
       keys     = var.cloudinit_ssh_keys
@@ -128,7 +130,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_prometheus" {
   }
 
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true # Protect monitoring VM from accidental destruction
   }
 }
 
@@ -137,7 +139,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_grafana" {
   count     = var.monitoring_grafana_enabled ? 1 : 0
   name      = "monitoring-grafana"
   node_name = var.proxmox_node
-  vm_id     = null  # Auto-assign VM ID
+  vm_id     = null # Auto-assign VM ID
 
   # Clone from template
   clone {
@@ -167,6 +169,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_grafana" {
 
   # Cloud-init configuration: inject SSH keys and user for Ansible access
   initialization {
+    datastore_id = var.vm_default_storage
     user_account {
       username = var.cloudinit_user
       keys     = var.cloudinit_ssh_keys
@@ -179,7 +182,7 @@ resource "proxmox_virtual_environment_vm" "monitoring_grafana" {
   }
 
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true # Protect monitoring VM from accidental destruction
   }
 }
 
@@ -189,22 +192,22 @@ output "vms" {
   value = merge(
     {
       example_vm = {
-        name        = proxmox_virtual_environment_vm.example_vm.name
-        ssh_user    = var.cloudinit_user
+        name         = proxmox_virtual_environment_vm.example_vm.name
+        ssh_user     = var.cloudinit_user
         ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
       }
     },
     var.monitoring_prometheus_enabled ? {
       monitoring_prometheus = {
-        name        = proxmox_virtual_environment_vm.monitoring_prometheus[0].name
-        ssh_user    = var.cloudinit_user
+        name         = proxmox_virtual_environment_vm.monitoring_prometheus[0].name
+        ssh_user     = var.cloudinit_user
         ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
       }
     } : {},
     var.monitoring_grafana_enabled ? {
       monitoring_grafana = {
-        name        = proxmox_virtual_environment_vm.monitoring_grafana[0].name
-        ssh_user    = var.cloudinit_user
+        name         = proxmox_virtual_environment_vm.monitoring_grafana[0].name
+        ssh_user     = var.cloudinit_user
         ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
       }
     } : {}

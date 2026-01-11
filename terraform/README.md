@@ -134,6 +134,66 @@ terraform {
 }
 ```
 
+## Safety Rules
+
+**⚠️ CRITICAL: Follow these rules to prevent accidental VM duplication or destruction**
+
+### Never Run `terraform apply` Twice in a Row
+
+**Always follow this sequence:**
+
+1. **Check existing resources first:**
+   ```bash
+   # Verify what exists in Proxmox
+   # Check for duplicate VMs
+   ```
+
+2. **Review Terraform state:**
+   ```bash
+   terraform state list
+   # Verify expected resources are tracked
+   ```
+
+3. **Always run plan first:**
+   ```bash
+   terraform plan
+   # READ THE OUTPUT CAREFULLY
+   # Verify: no unexpected creates, no unexpected destroys
+   ```
+
+4. **Only then apply:**
+   ```bash
+   terraform apply
+   # Review plan output again before confirming
+   ```
+
+### Always Run `terraform plan` and Read Output
+
+**Before every `terraform apply`:**
+- Run `terraform plan` first
+- Read the entire plan output
+- Verify the plan matches your expectations
+- Check for unexpected resource creation or destruction
+- If plan shows unexpected changes, **STOP** and investigate
+
+### Terraform Does Not Auto-Detect Existing VMs
+
+**Critical**: Terraform only knows about resources in its state file. If a VM exists in Proxmox but not in Terraform state, Terraform will try to create it again, resulting in duplicates.
+
+**Solution**: Always import existing VMs before applying:
+```bash
+terraform import proxmox_virtual_environment_vm.monitoring_prometheus[0] proxmox/123
+```
+
+### Manual Proxmox Changes Must Be Documented
+
+If you make changes in Proxmox Web UI or CLI:
+1. **Document the change** - What was changed and why
+2. **Update Terraform state** - Use `terraform import` or `terraform state rm` as appropriate
+3. **Verify with plan** - Run `terraform plan` to ensure state matches reality
+
+**Never** make manual Proxmox changes without updating Terraform state.
+
 ## Security
 
 - **Never commit** `terraform.tfvars` or `.tfstate` files
