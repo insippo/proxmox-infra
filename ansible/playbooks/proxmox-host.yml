@@ -29,6 +29,8 @@
     - role: ssh_keys
     - role: admin_user
       when: admin_user_enabled | bool
+    - role: node_exporter
+      when: node_exporter_enabled | bool
 
   tasks:
     - name: Install essential base packages (tooling + time sync + certs)

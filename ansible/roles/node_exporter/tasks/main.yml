@@ -1,0 +1,28 @@
+---
+# Node Exporter role for Proxmox hosts
+# Installs and configures prometheus-node-exporter for read-only host monitoring
+# Safe to run repeatedly (idempotent)
+
+- name: Install prometheus-node-exporter package
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+  register: node_exporter_installed
+
+- name: Ensure prometheus-node-exporter service is enabled and running
+  ansible.builtin.service:
+    name: prometheus-node-exporter
+    state: started
+    enabled: true
+
+- name: Verify node_exporter is listening on port 9100
+  ansible.builtin.wait_for:
+    port: 9100
+    host: localhost
+    delay: 2
+    timeout: 10
+  delegate_to: localhost
+  when: node_exporter_installed.changed
+

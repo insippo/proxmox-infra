@@ -78,3 +78,6 @@ admin_user_ssh_keys:
   - "ssh-ed25519 AAAAexampleadminkey1 admin@example"
   - "ssh-rsa AAAAexampleadminkey2 admin@example"
 
+# Node Exporter for monitoring (disabled by default; read-only metrics).
+node_exporter_enabled: false
+
