@@ -10,6 +10,8 @@
 *.retry
 .vault_pass
 ansible_vault_*
+# Local Ansible inventory (contains real hosts/IPs)
+ansible/inventory.yml
 
 # Packer
 *.pkr.hcl.backup
