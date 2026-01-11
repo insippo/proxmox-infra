@@ -1,53 +1,168 @@
 ---
-# Playbook: Configure Proxmox host
-# Purpose: Set up Proxmox VE host with required packages, storage, and network configuration
-#
+# Playbook: Base Proxmox host configuration
+# Scope: base OS hardening and utilities only; no storage, no VMs/LXCs.
+# Safe to run repeatedly (idempotent) across multiple hosts on LAN-only SSH.
 # Usage:
 #   ansible-playbook -i inventory.yml playbooks/proxmox-host.yml
 
-- name: Configure Proxmox Host
+- name: Base configuration for Proxmox hosts
   hosts: proxmox_hosts
-  become: yes
-  gather_facts: yes
+  become: true
+  gather_facts: true
 
   vars:
-    # Storage configuration
-    storage_pools:
-      - name: "local-lvm"
-        type: "lvm"
-        path: "/var/lib/vz"
-    
-    # Network configuration
-    network_bridge: "vmbr0"
-    network_interface: "eth0"
+    base_packages:
+      - vim
+      - curl
+      - htop
+      - ca-certificates
+      - chrony
+      - sudo
 
-  tasks:
-    - name: Update package cache
-      apt:
-        update_cache: yes
+    sshd_config_path: /etc/ssh/sshd_config
+
+    sshd_settings:
+      # Keep SSH key access but block password logins to avoid credential risk.
+      - option: PermitRootLogin
+        value: prohibit-password
+      # Enforce key-based auth; LAN-only but still avoid passwords.
+      - option: PasswordAuthentication
+        value: "no"
+      - option: PubkeyAuthentication
+        value: "yes"
+      - option: ChallengeResponseAuthentication
+        value: "no"
+      - option: UsePAM
+        value: "yes"
+      # Keep sessions healthy without hanging connections.
+      - option: ClientAliveInterval
+        value: "300"
+      - option: ClientAliveCountMax
+        value: "2"
+      # Shorten grace time to reduce brute-force window without locking out keys.
+      - option: LoginGraceTime
+        value: "30"
+      # Keep defaults explicit for clarity.
+      - option: X11Forwarding
+        value: "no"
+      - option: AllowAgentForwarding
+        value: "no"
+
+    sysctl_settings:
+      # Network sanity and basic hardening (no routing enablement here).
+      net.ipv4.ip_forward: 0
+      net.ipv4.conf.all.accept_redirects: 0
+      net.ipv4.conf.default.accept_redirects: 0
+      net.ipv4.conf.all.send_redirects: 0
+      net.ipv4.conf.default.send_redirects: 0
+      net.ipv4.conf.all.rp_filter: 1
+      net.ipv4.conf.default.rp_filter: 1
+      net.ipv4.tcp_syncookies: 1
+      net.ipv4.icmp_echo_ignore_broadcasts: 1
+      net.ipv4.icmp_ignore_bogus_error_responses: 1
+      net.ipv4.conf.all.log_martians: 1
+      net.ipv4.conf.default.log_martians: 1
+      # I/O safety to avoid aggressive writeback on hypervisor nodes.
+      vm.swappiness: 10
+      vm.dirty_ratio: 15
+      vm.dirty_background_ratio: 5
+
+  pre_tasks:
+    - name: Update package cache (keeps installs fast and current)
+      ansible.builtin.apt:
+        update_cache: true
         cache_valid_time: 3600
 
-    - name: Install required packages
-      apt:
-        name:
-          - curl
-          - wget
-          - git
-          - htop
+    - name: Check for authorized_keys to avoid lockout before hardening
+      ansible.builtin.stat:
+        path: /root/.ssh/authorized_keys
+      register: authorized_keys_stat
+
+    - name: Stop if no SSH keys are present (prevents locking out)
+      ansible.builtin.fail:
+        msg: "Add at least one SSH public key to /root/.ssh/authorized_keys before applying SSH hardening."
+      when: not authorized_keys_stat.stat.exists or authorized_keys_stat.stat.size | default(0) == 0
+
+  tasks:
+    - name: Install essential base packages (tooling + time sync + certs)
+      ansible.builtin.apt:
+        name: "{{ base_packages }}"
         state: present
 
-    - name: Configure storage pools
-      # TODO: Add storage pool configuration tasks
-      debug:
-        msg: "Storage pool configuration would go here"
+    - name: Ensure chrony service is enabled and running (time sync)
+      ansible.builtin.service:
+        name: chrony
+        state: started
+        enabled: true
 
-    - name: Configure network bridges
-      # TODO: Add network bridge configuration tasks
-      debug:
-        msg: "Network bridge configuration would go here"
+    - name: (Optional) Set custom NTP servers for chrony
+      ansible.builtin.debug:
+        msg: "Define chrony servers in a role/vars if needed (kept generic here)"
+      # TODO: Add chrony.conf template once NTP sources are defined.
 
-    - name: Verify Proxmox API access
-      # TODO: Add Proxmox API verification
-      debug:
-        msg: "Proxmox API verification would go here"
+    - name: Harden SSH daemon for key-only access on LAN
+      ansible.builtin.lineinfile:
+        path: "{{ sshd_config_path }}"
+        regexp: "^{{ item.option }}\\s"
+        line: "{{ item.option }} {{ item.value }}"
+        state: present
+        create: false
+        backrefs: false
+      loop: "{{ sshd_settings }}"
+      notify: Restart sshd
 
+    - name: Ensure SSH daemon uses authorized_keys (avoid surprises)
+      ansible.builtin.lineinfile:
+        path: "{{ sshd_config_path }}"
+        regexp: "^AuthorizedKeysFile\\s"
+        line: "AuthorizedKeysFile .ssh/authorized_keys"
+        state: present
+        create: false
+      notify: Restart sshd
+
+    - name: Ensure SSH service is enabled
+      ansible.builtin.service:
+        name: ssh
+        state: started
+        enabled: true
+
+    - name: Apply baseline sysctl settings (network + I/O safety)
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+      loop: "{{ sysctl_settings | dict2items }}"
+
+    - name: Ensure journald persistent storage directory exists
+      ansible.builtin.file:
+        path: /var/log/journal
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Configure journald for persistent logging
+      ansible.builtin.lineinfile:
+        path: /etc/systemd/journald.conf
+        regexp: "^Storage="
+        line: "Storage=persistent"
+        state: present
+        create: false
+      notify: Restart journald
+
+    - name: (Optional) Tune journald retention
+      ansible.builtin.debug:
+        msg: "Set SystemMaxUse/SystemKeepFree in journald.conf when requirements are known."
+      # TODO: Add retention limits when storage policy is defined.
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
+
+    - name: Restart journald
+      ansible.builtin.service:
+        name: systemd-journald
+        state: restarted
