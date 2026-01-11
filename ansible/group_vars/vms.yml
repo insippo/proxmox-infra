@@ -1,0 +1,14 @@
+---
+# Variables for Linux VMs (created via Terraform + cloud-init)
+# These apply to all hosts in the 'vms' group
+
+# Timezone for VMs
+vm_timezone: "UTC"
+
+# Base packages to install on all VMs
+vm_base_packages:
+  - vim
+  - curl
+  - ca-certificates
+  - qemu-guest-agent
+

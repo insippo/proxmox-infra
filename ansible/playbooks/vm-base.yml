@@ -1,60 +1,77 @@
 ---
-# Playbook: Configure base VM
-# Purpose: Apply common configuration to VMs (users, packages, security)
-#
+# Playbook: Base configuration for Linux VMs
+# Scope: Essential packages, timezone, qemu-guest-agent, basic SSH safety
+# Target: VMs created via Terraform + cloud-init (SSH access already works)
+# Safe to run repeatedly (idempotent) across multiple VMs
 # Usage:
 #   ansible-playbook -i inventory.yml playbooks/vm-base.yml --limit vms
 
-- name: Configure Base VM
+- name: Base configuration for Linux VMs
   hosts: vms
-  become: yes
-  gather_facts: yes
+  become: true
+  gather_facts: true
 
-  vars:
-    # Base packages to install
-    base_packages:
-      - curl
-      - wget
-      - git
-      - vim
-      - htop
-      - unattended-upgrades
-
-    # User configuration
-    admin_user: "admin"
-    # admin_password: "set via vault"
-    admin_groups: "sudo"
-
-  tasks:
-    - name: Update package cache
-      apt:
-        update_cache: yes
+  pre_tasks:
+    - name: Update package cache (keeps installs fast and current)
+      ansible.builtin.apt:
+        update_cache: true
         cache_valid_time: 3600
       when: ansible_os_family == "Debian"
 
-    - name: Install base packages
-      apt:
-        name: "{{ base_packages }}"
+  tasks:
+    # Install essential base packages
+    - name: Install essential base packages
+      ansible.builtin.apt:
+        name: "{{ vm_base_packages }}"
         state: present
       when: ansible_os_family == "Debian"
 
-    - name: Create admin user
-      # TODO: Add user creation with proper password handling
-      debug:
-        msg: "User creation would go here"
+    # QEMU Guest Agent (enables Proxmox features like shutdown, IP detection)
+    - name: Install qemu-guest-agent
+      ansible.builtin.apt:
+        name: qemu-guest-agent
+        state: present
+      when: ansible_os_family == "Debian"
 
-    - name: Configure SSH
-      # TODO: Add SSH configuration (disable root login, key-based auth)
-      debug:
-        msg: "SSH configuration would go here"
+    - name: Ensure qemu-guest-agent service is enabled and running
+      ansible.builtin.service:
+        name: qemu-guest-agent
+        state: started
+        enabled: true
 
-    - name: Configure firewall
-      # TODO: Add firewall rules
-      debug:
-        msg: "Firewall configuration would go here"
+    # Timezone configuration
+    - name: Set timezone
+      ansible.builtin.timezone:
+        name: "{{ vm_timezone }}"
 
-    - name: Enable automatic security updates
-      # TODO: Configure unattended-upgrades
-      debug:
-        msg: "Automatic updates configuration would go here"
+    # Basic SSH safety (LAN-friendly, not over-hardened)
+    # Note: VMs already have SSH keys from cloud-init, this just adds safety
+    - name: Ensure SSH password authentication is disabled (key-only)
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PasswordAuthentication\\s"
+        line: "PasswordAuthentication no"
+        state: present
+        create: false
+      notify: Restart sshd
 
+    - name: Ensure SSH root login is disabled (use regular user)
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin\\s"
+        line: "PermitRootLogin no"
+        state: present
+        create: false
+      notify: Restart sshd
+
+    - name: Ensure SSH service is enabled
+      ansible.builtin.service:
+        name: ssh
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.service:
+        name: ssh
+        state: restarted

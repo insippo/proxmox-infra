@@ -109,6 +109,47 @@ proxmox-infra/
 └── docs/            # Documentation
 ```
 
+## VM Base vs Proxmox Host Configuration
+
+### Separation of Concerns
+
+**Proxmox Host Configuration** (`ansible/playbooks/proxmox-host.yml`):
+- **Target**: Proxmox VE hypervisor hosts
+- **Purpose**: Configure the infrastructure layer
+- **Scope**: 
+  - Host OS hardening (SSH, sysctl, journald)
+  - Base packages for host management
+  - Time synchronization (chrony)
+  - Storage and network configuration (not in this playbook)
+- **Access**: Root SSH access (LAN-only)
+- **When**: First, before any VMs are created
+
+**VM Base Configuration** (`ansible/playbooks/vm-base.yml`):
+- **Target**: Linux VMs created via Terraform + cloud-init
+- **Purpose**: Configure the guest OS layer
+- **Scope**:
+  - Essential packages (vim, curl, ca-certificates)
+  - QEMU Guest Agent (enables Proxmox features)
+  - Timezone configuration
+  - Basic SSH safety (key-only, no root login)
+- **Access**: User SSH access (injected via cloud-init)
+- **When**: After Terraform creates VMs and cloud-init bootstraps access
+
+### Why Separate?
+
+1. **Different Targets**: Hosts vs VMs have different requirements
+2. **Different Access**: Root on hosts vs regular user on VMs
+3. **Different Lifecycle**: Hosts are long-lived, VMs are ephemeral
+4. **Different Hardening**: Hosts need hypervisor-level security, VMs need guest OS security
+5. **Reusability**: VM playbook can be used for any Terraform-created VM
+
+### Workflow
+
+1. **Ansible** configures Proxmox host (host hardening, packages)
+2. **Terraform** creates VMs (infrastructure provisioning)
+3. **cloud-init** bootstraps VM access (SSH keys, user)
+4. **Ansible** configures VMs (guest OS configuration)
+
 ## SSH Policy (Proxmox hosts)
 
 - Key-based only; password authentication disabled (LAN-only access assumed)
@@ -116,6 +157,13 @@ proxmox-infra/
 - Keep `authorized_keys` present before applying hardening to avoid lockout
 - Client keepalives enabled (300s interval, 2 attempts) to avoid stale sessions
 - X11 and agent forwarding disabled by default
+
+## SSH Policy (VMs)
+
+- Key-based only; password authentication disabled
+- Root login disabled (use regular user with sudo)
+- SSH keys injected via cloud-init (from Terraform)
+- LAN-friendly configuration (not over-hardened)
 
 ## Admin User Policy
 
