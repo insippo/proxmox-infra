@@ -304,6 +304,74 @@ docker_users: []       # Optional: users to add to docker group
 - Allows selective service deployment
 - Easy to enable/disable per environment
 
+## Environments (lab vs prod)
+
+### Value-Only Separation
+
+**Key principle**: Same codebase, different values.
+
+**Why value-only, not code forks:**
+- **Single source of truth**: One set of playbooks and roles
+- **Consistency**: Same logic across all environments
+- **Maintainability**: Changes apply to all environments
+- **Auditability**: Easy to see what differs between environments
+- **No duplication**: Playbooks are not copied or forked
+
+### Environment Files
+
+**`group_vars/vms.yml`** - Default values (safe, conservative)
+- Base configuration for all VMs
+- Docker disabled by default
+- Minimal, essential settings
+
+**`group_vars/lab.yml`** - Lab environment overrides
+- More permissive settings for testing
+- Docker enabled by default
+- Example values for experimentation
+
+**`group_vars/prod.yml`** - Production environment overrides
+- Stricter, conservative defaults
+- Docker disabled by default
+- Production-specific hardening
+
+### How It Works
+
+**Variable precedence** (lowest to highest):
+1. Defaults (`group_vars/vms.yml`)
+2. Environment (`group_vars/lab.yml` or `group_vars/prod.yml`)
+3. Host-specific (inventory host vars)
+4. Command-line (`--extra-vars`)
+
+**Example:**
+- Default: `docker_enabled: false` (in `vms.yml`)
+- Lab override: `docker_enabled: true` (in `lab.yml`)
+- Result in lab: Docker is enabled
+- Result in prod: Docker is disabled (uses default)
+
+### Usage Patterns
+
+**Method 1: Extra Variables**
+```bash
+ansible-playbook -i inventory.yml playbooks/vm-base.yml --limit vms --extra-vars "env=lab"
+```
+
+**Method 2: Inventory Grouping**
+- Group VMs by environment in inventory
+- Ansible automatically loads matching `group_vars/*.yml` files
+- No extra flags needed
+
+**Method 3: Direct Group Assignment**
+- Assign hosts to `lab` or `prod` groups in inventory
+- Ansible merges variables from matching group_vars files
+
+### Benefits
+
+- **Explicit**: All environment differences are visible in group_vars files
+- **Auditable**: Easy to compare lab vs prod settings
+- **Safe**: Production defaults are conservative
+- **Flexible**: Easy to add new environments (e.g., `staging.yml`)
+- **No secrets**: Environment files contain only configuration values, not secrets
+
 ## SSH Policy (Proxmox hosts)
 
 - Key-based only; password authentication disabled (LAN-only access assumed)

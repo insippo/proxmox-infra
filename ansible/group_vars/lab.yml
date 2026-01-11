@@ -1,0 +1,13 @@
+---
+# Lab environment variables
+# These override defaults from vms.yml for lab environment
+# Lab environment allows more permissive settings for testing
+
+# Docker service configuration (enabled in lab for testing)
+docker_enabled: true
+docker_users:
+  - "admin"  # Example user - replace with actual username
+
+# Example: More permissive settings for lab
+# vm_timezone: "America/New_York"  # Override default timezone if needed
+

@@ -1,0 +1,13 @@
+---
+# Production environment variables
+# These override defaults from vms.yml for production environment
+# Production environment uses stricter, more conservative defaults
+
+# Docker service configuration (disabled in prod by default)
+docker_enabled: false
+docker_users: []  # Empty by default - add users explicitly if needed
+
+# Example: Production-specific overrides
+# vm_timezone: "UTC"  # Explicit UTC for production
+# Additional production hardening can be added here
+

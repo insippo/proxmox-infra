@@ -105,9 +105,72 @@ ansible-playbook -i inventory.yml playbooks/vm-base.yml --limit vms
 - SSH hardening settings, sysctl, journald, etc.
 
 ### `group_vars/vms.yml`
-- Variables for VM configuration
+- Variables for VM configuration (defaults)
 - Timezone, base packages list
 - Docker configuration (enabled flag, users list)
+- Safe defaults (Docker disabled, minimal configuration)
+
+### Environment-Specific Variables
+
+**`group_vars/lab.yml`** - Lab environment overrides
+- More permissive settings for testing
+- Docker enabled by default
+- Example values for testing
+
+**`group_vars/prod.yml`** - Production environment overrides
+- Stricter, conservative defaults
+- Docker disabled by default
+- Production-specific hardening
+
+**How environments work:**
+- Same playbooks and roles for all environments
+- Environment-specific values override defaults
+- Use `--extra-vars "env=lab"` or inventory grouping
+- No code duplication - only values differ
+
+## Environments
+
+### Using Environments
+
+**Method 1: Extra Variables**
+```bash
+# Run with lab environment
+ansible-playbook -i inventory.yml playbooks/vm-base.yml --limit vms --extra-vars "env=lab"
+
+# Run with prod environment
+ansible-playbook -i inventory.yml playbooks/vm-base.yml --limit vms --extra-vars "env=prod"
+```
+
+**Method 2: Inventory Grouping**
+```yaml
+# In inventory.yml, group VMs by environment
+all:
+  children:
+    lab:
+      children:
+        vms:
+          hosts:
+            lab_vm_1:
+              ansible_host: "<lab_vm_ip>"
+    prod:
+      children:
+        vms:
+          hosts:
+            prod_vm_1:
+              ansible_host: "<prod_vm_ip>"
+```
+
+**Method 3: Direct Group Vars**
+- Ansible automatically loads `group_vars/lab.yml` for hosts in `lab` group
+- Ansible automatically loads `group_vars/prod.yml` for hosts in `prod` group
+- Variables are merged with defaults from `group_vars/vms.yml`
+
+### Environment Variable Precedence
+
+1. **Defaults** (`group_vars/vms.yml`) - Safe, conservative values
+2. **Environment** (`group_vars/lab.yml` or `group_vars/prod.yml`) - Overrides defaults
+3. **Host-specific** (inventory host vars) - Overrides everything
+4. **Command-line** (`--extra-vars`) - Highest precedence
 
 ## Usage Examples
 
