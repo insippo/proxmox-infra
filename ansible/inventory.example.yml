@@ -23,3 +23,18 @@ all:
         # Example: ntp_servers: []
         # Keep this generic; fill in per-environment in your real inventory.
 
+    vms:
+      # Group for Linux VMs created via Terraform + cloud-init
+      # Add VMs here after Terraform creates them
+      hosts:
+        vm_example_1:
+          ansible_host: "<vm_example_1_address_or_fqdn>"
+        vm_example_2:
+          ansible_host: "<vm_example_2_address_or_fqdn>"
+      vars:
+        # Common variables for all VMs
+        # ansible_user matches the cloud-init user from Terraform (default: admin)
+        ansible_user: "admin"
+        ansible_port: 22
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=accept-new'
+

@@ -100,11 +100,70 @@ This document describes the architecture and design decisions for the Proxmox in
 - Ansible uses the same SSH keys for access
 - No hardcoded values in code
 
+## Inventory & Lifecycle Wiring
+
+### Static Inventory Approach
+
+**Why static inventory first:**
+- **Explicit and auditable**: All hosts are visible in one file
+- **Simple and obvious**: Easy to understand and maintain
+- **No dependencies**: Works without Terraform outputs or API access
+- **Version controlled**: Inventory changes go through code review
+- **Safe**: No risk of accidentally managing wrong hosts
+
+**Future enhancement:**
+- Dynamic inventory from Terraform outputs (planned)
+- Automatic VM discovery via Proxmox API (optional)
+
+### Inventory Groups
+
+**`proxmox_hosts`** group:
+- Contains Proxmox VE hypervisor hosts
+- Used by `ansible/playbooks/proxmox-host.yml`
+- Root SSH access (LAN-only)
+- Configured first, before VM creation
+
+**`vms`** group:
+- Contains Linux VMs created via Terraform + cloud-init
+- Used by `ansible/playbooks/vm-base.yml`
+- User SSH access (injected via cloud-init)
+- Configured after VM creation
+
+### VM Lifecycle Wiring
+
+**Complete workflow:**
+
+1. **Terraform creates VM**
+   - VM is provisioned with cloud-init
+   - SSH keys and user are injected
+   - VM becomes SSH-accessible
+
+2. **Operator adds VM to inventory**
+   - Add VM entry to `ansible/inventory.yml`
+   - Use VM's IP address or hostname
+   - Set `ansible_user` to match `cloudinit_user` from Terraform
+
+3. **Ansible applies base configuration**
+   - Run `ansible-playbook -i inventory.yml playbooks/vm-base.yml --limit vms`
+   - Ansible connects via SSH (using keys from cloud-init)
+   - Base configuration is applied (packages, timezone, qemu-guest-agent)
+
+**Why manual inventory step:**
+- Operator verifies VM is accessible before Ansible runs
+- Explicit control over which VMs are managed
+- Easy to audit what's in inventory
+- No risk of managing unintended VMs
+
 ## Directory Structure
 
 ```
 proxmox-infra/
 ├── ansible/          # Configuration management (first)
+│   ├── inventory.example.yml  # Example inventory (committed)
+│   ├── inventory.yml          # Actual inventory (not committed)
+│   ├── playbooks/             # Playbooks for hosts and VMs
+│   ├── roles/                  # Reusable roles
+│   └── group_vars/             # Group-specific variables
 ├── terraform/        # Infrastructure provisioning (second)
 └── docs/            # Documentation
 ```
