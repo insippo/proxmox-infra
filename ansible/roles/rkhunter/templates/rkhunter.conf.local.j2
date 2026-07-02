@@ -1,0 +1,17 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed | default('Managed by Ansible - do not edit by hand') }}
+# Local rkhunter overrides. rkhunter reads this file automatically after
+# /etc/rkhunter.conf, so package upgrades never clobber these settings.
+
+{% for path in rkhunter_allow_dev_files %}
+ALLOWDEVFILE={{ path }}
+{% endfor %}
+{% for path in rkhunter_allow_hidden_files %}
+ALLOWHIDDENFILE={{ path }}
+{% endfor %}
+{% for path in rkhunter_allow_hidden_dirs %}
+ALLOWHIDDENDIR={{ path }}
+{% endfor %}
+{% for path in rkhunter_script_whitelist %}
+SCRIPTWHITELIST={{ path }}
+{% endfor %}
