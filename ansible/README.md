@@ -2,6 +2,16 @@
 
 This directory contains Ansible playbooks and roles for managing Proxmox infrastructure.
 
+## Setup
+
+Install the required collections once before running playbooks:
+
+```bash
+ansible-galaxy collection install -r requirements.yml
+```
+
+(`ansible.posix` for `authorized_key`, `community.general` for `timezone`.)
+
 ## Inventory Structure
 
 ### Groups

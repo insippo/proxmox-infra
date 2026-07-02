@@ -35,4 +35,3 @@
     mode: "0600"
     content: "{{ (ssh_allowed_keys | join('\n')) ~ '\n' }}"
   when: ssh_keys_enforce | bool
-

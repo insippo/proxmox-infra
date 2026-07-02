@@ -9,7 +9,6 @@
     state: present
     update_cache: true
   when: ansible_os_family == "Debian"
-  register: node_exporter_installed
 
 - name: Ensure prometheus-node-exporter service is enabled and running
   ansible.builtin.service:
@@ -17,12 +16,9 @@
     state: started
     enabled: true
 
+# Runs on the target host; a read-only check that never reports change
 - name: Verify node_exporter is listening on port 9100
   ansible.builtin.wait_for:
     port: 9100
     host: localhost
-    delay: 2
-    timeout: 10
-  delegate_to: localhost
-  when: node_exporter_installed.changed
-
+    timeout: 30

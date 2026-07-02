@@ -1,0 +1,6 @@
+---
+# Ansible collection requirements
+# Install with: ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: ansible.posix      # authorized_key (ssh_keys, admin_user roles)
+  - name: community.general  # timezone (vm-base playbook)

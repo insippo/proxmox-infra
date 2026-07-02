@@ -39,21 +39,21 @@
 
     # Storage devices detection
     - name: List NVMe devices
-      ansible.builtin.command:
+      ansible.builtin.shell:
         cmd: lsblk -d -o NAME,SIZE,TYPE,MODEL | grep -E "^(nvme|NAME)" || echo "No NVMe devices found"
       register: nvme_devices
       changed_when: false
       failed_when: false
 
     - name: List SSD devices
-      ansible.builtin.command:
+      ansible.builtin.shell:
         cmd: lsblk -d -o NAME,SIZE,TYPE,MODEL | grep -E "^(sd|vd|hd)" || echo "No SSD/HDD devices found"
       register: ssd_devices
       changed_when: false
       failed_when: false
 
     - name: Check for ZFS presence
-      ansible.builtin.command:
+      ansible.builtin.shell:
         cmd: zpool list 2>/dev/null || echo "ZFS not detected"
       register: zfs_pools
       changed_when: false
@@ -67,21 +67,21 @@
       changed_when: false
 
     - name: Get network bridges (Proxmox-specific)
-      ansible.builtin.command:
+      ansible.builtin.shell:
         cmd: brctl show 2>/dev/null || ip link show type bridge
       register: network_bridges
       changed_when: false
       failed_when: false
 
     # Running services summary
-    - name: Get running services count
-      ansible.builtin.command:
-        cmd: systemctl list-units --type=service --state=running --no-pager | wc -l
+    - name: Get running services count  # noqa: command-instead-of-module (no module lists units)
+      ansible.builtin.shell:
+        cmd: systemctl list-units --type=service --state=running --no-pager --plain --no-legend | wc -l
       register: running_services_count
       changed_when: false
 
-    - name: Get failed services
-      ansible.builtin.command:
+    - name: Get failed services  # noqa: command-instead-of-module (no module lists units)
+      ansible.builtin.shell:
         cmd: systemctl list-units --type=service --state=failed --no-pager || echo "No failed services"
       register: failed_services
       changed_when: false
@@ -92,61 +92,61 @@
       ansible.builtin.set_fact:
         host_audit_section: |
           ## Host: {{ inventory_hostname }}
-          
+
           ### System Information
           - **OS**: {{ ansible_distribution }} {{ ansible_distribution_version }}
           - **Kernel**: {{ ansible_kernel }}
           - **Architecture**: {{ ansible_architecture }}
           - **Uptime**: {{ ansible_uptime_seconds | int // 86400 }} days
-          
+
           ### Proxmox Version
           ```
           {{ pveversion_output.stdout | default('Not available') }}
           ```
-          
+
           ### CPU Information
           ```
           {{ cpu_info.stdout }}
           ```
-          
+
           ### Memory Summary
           ```
           {{ memory_info.stdout }}
           ```
-          
+
           ### Storage Devices
           **NVMe Devices:**
           ```
           {{ nvme_devices.stdout }}
           ```
-          
+
           **SSD/HDD Devices:**
           ```
           {{ ssd_devices.stdout }}
           ```
-          
+
           **ZFS Pools:**
           ```
           {{ zfs_pools.stdout }}
           ```
-          
+
           ### Network Interfaces
           ```
           {{ network_interfaces.stdout }}
           ```
-          
+
           **Network Bridges:**
           ```
           {{ network_bridges.stdout }}
           ```
-          
+
           ### Services
           - **Running services**: {{ running_services_count.stdout | trim }}
-          - **Failed services**: 
+          - **Failed services**:
           ```
           {{ failed_services.stdout }}
           ```
-          
+
           ---
 
   # Write all results to file in a single task
@@ -155,9 +155,9 @@
       ansible.builtin.set_fact:
         complete_audit_report: |
           # Proxmox Host Audit Report
-          
+
           Generated: {{ ansible_date_time.iso8601 }}
-          
+
           {% for host in groups['proxmox_hosts'] %}
           {{ hostvars[host]['host_audit_section'] | default('') }}
           {% endfor %}
@@ -171,4 +171,3 @@
         mode: '0644'
       delegate_to: localhost
       run_once: true
-

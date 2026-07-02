@@ -51,7 +51,7 @@
 
     # Timezone configuration
     - name: Set timezone
-      ansible.builtin.timezone:
+      community.general.timezone:
         name: "{{ vm_timezone }}"
 
     # Basic SSH safety (LAN-friendly, not over-hardened)

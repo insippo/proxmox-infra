@@ -35,7 +35,6 @@
     state: present
     update_cache: true
   when: ansible_os_family == "Debian"
-  register: grafana_installed
 
 - name: Create Grafana datasources directory
   ansible.builtin.file:
@@ -84,7 +83,7 @@
     paths: "{{ playbook_dir }}/../../../monitoring/grafana/dashboards"
     patterns: "*.json"
     file_type: file
-  register: dashboard_files
+  register: grafana_dashboard_files
 
 - name: Deploy dashboard JSON files
   ansible.builtin.copy:
@@ -93,9 +92,9 @@
     owner: root
     group: root
     mode: '0644'
-  loop: "{{ dashboard_files.files }}"
+  loop: "{{ grafana_dashboard_files.files }}"
   notify: Restart grafana
-  when: dashboard_files.matched > 0
+  when: grafana_dashboard_files.matched > 0
 
 - name: Ensure Grafana service is enabled and running
   ansible.builtin.service:
@@ -103,12 +102,9 @@
     state: started
     enabled: true
 
+# Runs on the target host; a read-only check that never reports change
 - name: Verify Grafana is listening on port 3000
   ansible.builtin.wait_for:
     port: 3000
     host: localhost
-    delay: 2
-    timeout: 10
-  delegate_to: localhost
-  when: grafana_installed.changed
-
+    timeout: 30
