@@ -80,7 +80,7 @@ ansible-playbook -i inventory.yml playbooks/vm-base.yml --limit vms
 - **Target**: `vms` group
 - **Purpose**: Configure Linux VMs
 - **Scope**: Base packages, qemu-guest-agent, timezone, basic SSH safety
-- **Optional roles**: Docker (enabled via `docker_enabled: true`)
+- **Optional roles**: Docker (enabled via `docker_enabled: true`), rkhunter (enabled via `rkhunter_enabled: true`)
 
 ## Roles
 
@@ -97,6 +97,12 @@ ansible-playbook -i inventory.yml playbooks/vm-base.yml --limit vms
 - Disabled by default (set `docker_enabled: true` in `group_vars/vms.yml` to enable)
 - Adds users to docker group (optional, via `docker_users` variable)
 - Idempotent and distro-aware (Debian/Ubuntu)
+
+### `roles/rkhunter/`
+- Installs rkhunter and deploys `/etc/rkhunter.conf.local` whitelists for
+  known-benign Podman false positives (lock files in `/dev/shm`, hidden
+  man-page symlink) — see `docs/operations/rkhunter-warnings.md`
+- Disabled by default (set `rkhunter_enabled: true` in `group_vars/vms.yml` to enable)
 
 ## Variables
 

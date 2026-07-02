@@ -1,0 +1,36 @@
+---
+# rkhunter role for Debian-based hosts
+# Installs rkhunter and deploys a local whitelist for known-benign findings
+# (Podman lock files in /dev/shm, hidden man-page symlink from podman/buildah).
+# Safe defaults: disabled by default, enabled via rkhunter_enabled variable
+
+- name: Install rkhunter
+  ansible.builtin.apt:
+    name: rkhunter
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Deploy local rkhunter whitelist (/etc/rkhunter.conf.local)
+  ansible.builtin.template:
+    src: rkhunter.conf.local.j2
+    dest: /etc/rkhunter.conf.local
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Refresh rkhunter file properties database
+
+- name: Configure daily cron scan (Debian /etc/default/rkhunter)
+  ansible.builtin.lineinfile:
+    path: /etc/default/rkhunter
+    regexp: "^{{ item.key }}="
+    line: '{{ item.key }}="{{ item.value }}"'
+    create: false
+  loop:
+    - { key: CRON_DAILY_RUN, value: "{{ 'true' if rkhunter_cron_daily_run else 'false' }}" }
+    - { key: CRON_DB_UPDATE, value: "{{ 'true' if rkhunter_cron_db_update else 'false' }}" }
+  when: ansible_os_family == "Debian"
+
+- name: Verify rkhunter configuration is valid
+  ansible.builtin.command:
+    cmd: rkhunter --config-check
+  changed_when: false

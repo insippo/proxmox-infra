@@ -18,6 +18,8 @@
       when: prometheus_enabled | bool
     - role: grafana
       when: grafana_enabled | bool
+    - role: rkhunter
+      when: rkhunter_enabled | bool
 
   pre_tasks:
     - name: Update package cache (keeps installs fast and current)

@@ -1,0 +1,27 @@
+---
+# Defaults for the rkhunter role
+# These whitelists cover known-benign findings so scheduled scans stay quiet.
+
+# Cron-driven daily scan (Debian package ships /etc/cron.daily/rkhunter)
+rkhunter_cron_daily_run: true
+rkhunter_cron_db_update: true
+
+# Non-device files in /dev that are legitimate.
+# Podman keeps its SHM lock files in /dev/shm; rkhunter flags any plain
+# file under /dev as suspicious. The rootless lock name contains the UID
+# of the user running rootless Podman, hence the wildcard.
+rkhunter_allow_dev_files:
+  - /dev/shm/libpod_lock
+  - /dev/shm/libpod_rootless_lock_*
+
+# Hidden files that are legitimate.
+# The podman/buildah packages ship a hidden man-page alias symlink:
+# /usr/share/man/man5/.containerignore.5.gz -> containerignore.5.gz
+rkhunter_allow_hidden_files:
+  - /usr/share/man/man5/.containerignore.5.gz
+
+# Hidden directories that are legitimate (none by default).
+rkhunter_allow_hidden_dirs: []
+
+# Scripts that are allowed to replace commands (none by default).
+rkhunter_script_whitelist: []

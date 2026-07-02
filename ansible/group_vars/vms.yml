@@ -22,3 +22,7 @@ prometheus_enabled: false  # Set to true to enable Prometheus on monitoring VM
 # Grafana monitoring (optional)
 grafana_enabled: false  # Set to true to enable Grafana on monitoring VM
 
+# rkhunter rootkit scanner (optional)
+# Deploys /etc/rkhunter.conf.local with whitelists for known-benign
+# Podman false positives (see ansible/roles/rkhunter/README.md)
+rkhunter_enabled: false  # Set to true on hosts that run rkhunter scans

@@ -1,0 +1,5 @@
+---
+- name: Refresh rkhunter file properties database
+  ansible.builtin.command:
+    cmd: rkhunter --propupd
+  changed_when: true
