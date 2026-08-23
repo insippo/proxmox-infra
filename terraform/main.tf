@@ -2,17 +2,22 @@
 # This file defines the main infrastructure resources
 
 terraform {
-  required_version = ">= 1.0"
+  # Upper bound included deliberately: a future Terraform 2.x may break this
+  # configuration, and CI pins 1.6.0.
+  required_version = ">= 1.5, < 2.0"
 
   required_providers {
     proxmox = {
-      source  = "bpg/proxmox"
-      version = "~> 0.66"
+      source = "bpg/proxmox"
+      # bpg/proxmox is pre-1.0 and makes breaking schema changes in minor
+      # releases, so allow patch updates only.
+      version = "~> 0.66.0"
     }
   }
 
   # Backend configuration
-  # Uncomment and configure your backend
+  # State is local and unlocked until this is configured. Uncomment and fill in
+  # before more than one person runs apply against the same infrastructure.
   # backend "s3" {
   #   bucket = "your-terraform-state-bucket"
   #   key    = "proxmox-infra/terraform.tfstate"
@@ -24,7 +29,28 @@ terraform {
 provider "proxmox" {
   endpoint  = var.proxmox_api_url
   api_token = "${var.proxmox_api_token_id}=${var.proxmox_api_token_secret}"
-  insecure  = true
+  insecure  = var.proxmox_tls_insecure
+}
+
+# Reads the IPv4 address the guest agent reports, skipping loopback. Returns null
+# until the agent has reported, so consumers must tolerate a null ansible_host.
+locals {
+  vm_ipv4 = {
+    example_vm = try([
+      for ips in proxmox_virtual_environment_vm.example_vm.ipv4_addresses :
+      ips[0] if length(ips) > 0 && ips[0] != "127.0.0.1"
+    ][0], null)
+
+    monitoring_prometheus = var.monitoring_prometheus_enabled ? try([
+      for ips in proxmox_virtual_environment_vm.monitoring_prometheus[0].ipv4_addresses :
+      ips[0] if length(ips) > 0 && ips[0] != "127.0.0.1"
+    ][0], null) : null
+
+    monitoring_grafana = var.monitoring_grafana_enabled ? try([
+      for ips in proxmox_virtual_environment_vm.monitoring_grafana[0].ipv4_addresses :
+      ips[0] if length(ips) > 0 && ips[0] != "127.0.0.1"
+    ][0], null) : null
+  }
 }
 
 # Example: Create a generic Linux VM
@@ -37,13 +63,14 @@ resource "proxmox_virtual_environment_vm" "example_vm" {
 
   # Clone from template
   clone {
-    vm_id = 9000
+    vm_id = var.base_template_vm_id
   }
 
   # VM compute resources (from variables)
   cpu {
-    cores = var.vm_default_cores
-    type  = "host"
+    cores   = var.vm_default_cores
+    sockets = var.vm_default_sockets
+    type    = "host"
   }
   memory {
     dedicated = var.vm_default_memory
@@ -56,7 +83,8 @@ resource "proxmox_virtual_environment_vm" "example_vm" {
     bridge = var.vm_default_bridge
   }
 
-  # Cloud-init enabled for bootstrap
+  # Cloud-init enabled for bootstrap. Also required for the ipv4_addresses
+  # attribute that the Ansible inventory reads.
   agent {
     enabled = true
   }
@@ -75,11 +103,6 @@ resource "proxmox_virtual_environment_vm" "example_vm" {
       }
     }
   }
-
-  # Lifecycle: prevent accidental destruction
-  lifecycle {
-    prevent_destroy = false
-  }
 }
 
 # Prometheus monitoring VM (optional)
@@ -91,13 +114,14 @@ resource "proxmox_virtual_environment_vm" "monitoring_prometheus" {
 
   # Clone from template
   clone {
-    vm_id = 9000
+    vm_id = var.base_template_vm_id
   }
 
   # VM compute resources (minimal for monitoring)
   cpu {
-    cores = var.monitoring_prometheus_cores
-    type  = "host"
+    cores   = var.monitoring_prometheus_cores
+    sockets = var.vm_default_sockets
+    type    = "host"
   }
   memory {
     dedicated = var.monitoring_prometheus_memory
@@ -129,9 +153,11 @@ resource "proxmox_virtual_environment_vm" "monitoring_prometheus" {
     }
   }
 
-  lifecycle {
-    prevent_destroy = true # Protect monitoring VM from accidental destruction
-  }
+  # No prevent_destroy here: it cannot be made conditional, so combining it with
+  # the count toggle above produces a plan that cannot be applied or reverted
+  # without editing this file. Setting monitoring_prometheus_enabled = false is
+  # the supported way to remove this VM, and review of `terraform plan` is what
+  # guards against doing it by accident.
 }
 
 # Grafana monitoring VM (optional)
@@ -143,13 +169,14 @@ resource "proxmox_virtual_environment_vm" "monitoring_grafana" {
 
   # Clone from template
   clone {
-    vm_id = 9000
+    vm_id = var.base_template_vm_id
   }
 
   # VM compute resources (minimal for monitoring)
   cpu {
-    cores = var.monitoring_grafana_cores
-    type  = "host"
+    cores   = var.monitoring_grafana_cores
+    sockets = var.vm_default_sockets
+    type    = "host"
   }
   memory {
     dedicated = var.monitoring_grafana_memory
@@ -181,12 +208,14 @@ resource "proxmox_virtual_environment_vm" "monitoring_grafana" {
     }
   }
 
-  lifecycle {
-    prevent_destroy = true # Protect monitoring VM from accidental destruction
-  }
+  # See the note on monitoring_prometheus above for why prevent_destroy is absent.
 }
 
-# Terraform outputs for dynamic Ansible inventory
+# Terraform outputs for dynamic Ansible inventory.
+#
+# ansible_host is null until the guest agent reports an address. The inventory
+# script (ansible/inventory/terraform.py) skips hosts whose address is null
+# rather than emitting an unreachable entry.
 output "vms" {
   description = "VM information for Ansible dynamic inventory"
   value = merge(
@@ -194,24 +223,23 @@ output "vms" {
       example_vm = {
         name         = proxmox_virtual_environment_vm.example_vm.name
         ssh_user     = var.cloudinit_user
-        ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
+        ansible_host = local.vm_ipv4.example_vm
       }
     },
     var.monitoring_prometheus_enabled ? {
       monitoring_prometheus = {
         name         = proxmox_virtual_environment_vm.monitoring_prometheus[0].name
         ssh_user     = var.cloudinit_user
-        ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
+        ansible_host = local.vm_ipv4.monitoring_prometheus
       }
     } : {},
     var.monitoring_grafana_enabled ? {
       monitoring_grafana = {
         name         = proxmox_virtual_environment_vm.monitoring_grafana[0].name
         ssh_user     = var.cloudinit_user
-        ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
+        ansible_host = local.vm_ipv4.monitoring_grafana
       }
     } : {}
   )
   sensitive = false
 }
-

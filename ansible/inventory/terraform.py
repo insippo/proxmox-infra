@@ -2,16 +2,17 @@
 """
 Dynamic Ansible inventory script that reads Terraform outputs.
 
-This script reads Terraform outputs and generates an Ansible-compatible JSON inventory.
-VMs are grouped under the 'vms' group.
+VMs are grouped under the 'vms' group. A VM whose IP address the Proxmox guest
+agent has not reported yet is left out of the inventory rather than added with
+an unusable address, so `--limit vms` acts on reachable hosts only.
 
 Usage:
-    ansible-inventory -i terraform.py --list
-    ansible-playbook -i terraform.py playbooks/vm-base.yml --limit vms
+    ansible-inventory -i ansible/inventory/terraform.py --list
+    ansible-playbook -i ansible/inventory/terraform.py playbooks/vm-base.yml --limit vms
 
 Requirements:
-    - Terraform must be initialized and outputs available
-    - Run from repository root or set TERRAFORM_DIR environment variable
+    - Terraform must be initialised and `terraform output -json` must work
+    - Override the Terraform directory with TERRAFORM_DIR if it is not <repo>/terraform
 """
 
 import json
@@ -19,120 +20,119 @@ import os
 import subprocess
 import sys
 
+SSH_COMMON_ARGS = '-o StrictHostKeyChecking=accept-new'
+
+# <repo>/ansible/inventory/terraform.py -> <repo>
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def warn(message):
+    """Report a problem on stderr.
+
+    Ansible reads stdout as inventory JSON, so a silent empty inventory used to be
+    indistinguishable from "no VMs exist". These warnings make the difference
+    visible without breaking the contract on stdout.
+    """
+    print('terraform.py: {}'.format(message), file=sys.stderr)
+
 
 def get_terraform_outputs(terraform_dir=None):
-    """Get Terraform outputs as JSON."""
+    """Return `terraform output -json` as a dict, or None if unavailable."""
     if terraform_dir is None:
-        terraform_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'terraform')
-    
-    if not os.path.exists(terraform_dir):
+        terraform_dir = os.environ.get('TERRAFORM_DIR') or os.path.join(REPO_ROOT, 'terraform')
+
+    if not os.path.isdir(terraform_dir):
+        warn('Terraform directory not found: {}'.format(terraform_dir))
         return None
-    
+
     try:
-        # Get Terraform outputs as JSON
         result = subprocess.run(
             ['terraform', 'output', '-json'],
             cwd=terraform_dir,
             capture_output=True,
             text=True,
-            check=False
+            check=False,
         )
-        
-        if result.returncode != 0:
-            # Terraform outputs not available (not initialized or no outputs)
-            return None
-        
+    except (subprocess.SubprocessError, FileNotFoundError) as exc:
+        warn('could not run terraform: {}'.format(exc))
+        return None
+
+    if result.returncode != 0:
+        warn('terraform output failed in {}: {}'.format(
+            terraform_dir, result.stderr.strip() or 'no stderr'))
+        return None
+
+    try:
         return json.loads(result.stdout)
-    except (subprocess.SubprocessError, json.JSONDecodeError, FileNotFoundError):
+    except json.JSONDecodeError as exc:
+        warn('could not parse terraform output as JSON: {}'.format(exc))
         return None
 
 
-def generate_inventory(terraform_outputs):
-    """Generate Ansible inventory from Terraform outputs."""
-    inventory = {
-        '_meta': {
-            'hostvars': {}
-        },
-        'vms': {
-            'hosts': [],
-            'vars': {
-                'ansible_user': None,  # Will be set from first VM
-                'ansible_port': 22,
-                'ansible_ssh_common_args': '-o StrictHostKeyChecking=accept-new'
-            }
-        },
-        'all': {
-            'children': ['vms']
-        }
+def empty_inventory():
+    return {
+        '_meta': {'hostvars': {}},
+        'vms': {'hosts': [], 'vars': {'ansible_ssh_common_args': SSH_COMMON_ARGS}},
+        'all': {'children': ['vms']},
     }
-    
+
+
+def generate_inventory(terraform_outputs):
+    """Build an Ansible inventory from the `vms` Terraform output."""
+    inventory = empty_inventory()
+
     if not terraform_outputs or 'vms' not in terraform_outputs:
+        warn("no 'vms' output found; is terraform apply complete?")
         return inventory
-    
-    vms_output = terraform_outputs['vms'].get('value', {})
-    
+
+    vms_output = terraform_outputs['vms'].get('value') or {}
+    skipped = []
+
     for vm_name, vm_data in vms_output.items():
-        # Add VM to vms group
+        ansible_host = (vm_data or {}).get('ansible_host')
+
+        # ansible_host is null until the guest agent reports an address, and older
+        # states may still hold the "<replace_with...>" placeholder. Neither is
+        # connectable, so leave the host out instead of guaranteeing an SSH failure.
+        if not ansible_host or (ansible_host.startswith('<') and ansible_host.endswith('>')):
+            skipped.append(vm_name)
+            continue
+
         inventory['vms']['hosts'].append(vm_name)
-        
-        # Set host variables
-        ansible_host = vm_data.get('ansible_host', '')
-        ssh_user = vm_data.get('ssh_user', 'admin')
-        
-        # Skip if ansible_host is a placeholder
-        if ansible_host.startswith('<') and ansible_host.endswith('>'):
-            # Placeholder detected - skip this VM or use name as fallback
-            inventory['_meta']['hostvars'][vm_name] = {
-                'ansible_host': vm_name,
-                'ansible_user': ssh_user,
-                'ansible_port': 22,
-                'ansible_ssh_common_args': '-o StrictHostKeyChecking=accept-new',
-                '_note': 'IP address not set - update Terraform output or use static inventory'
-            }
-        else:
-            inventory['_meta']['hostvars'][vm_name] = {
-                'ansible_host': ansible_host,
-                'ansible_user': ssh_user,
-                'ansible_port': 22,
-                'ansible_ssh_common_args': '-o StrictHostKeyChecking=accept-new'
-            }
-        
-        # Set default ansible_user from first VM
-        if inventory['vms']['vars']['ansible_user'] is None:
-            inventory['vms']['vars']['ansible_user'] = ssh_user
-    
+        inventory['_meta']['hostvars'][vm_name] = {
+            'ansible_host': ansible_host,
+            'ansible_user': (vm_data or {}).get('ssh_user', 'admin'),
+            'ansible_port': 22,
+            'ansible_ssh_common_args': SSH_COMMON_ARGS,
+        }
+
+    if skipped:
+        warn('no IP address yet, skipping: {}'.format(', '.join(sorted(skipped))))
+        warn('the Proxmox guest agent must be running in the VM for its address to appear')
+
     return inventory
 
 
 def main():
-    """Main entry point for Ansible dynamic inventory."""
     if len(sys.argv) == 2 and sys.argv[1] == '--list':
-        # Get Terraform outputs
-        terraform_outputs = get_terraform_outputs()
-        
-        if terraform_outputs is None:
-            # No Terraform outputs available - return empty inventory
-            print(json.dumps({
-                '_meta': {'hostvars': {}},
-                'vms': {'hosts': []},
-                'all': {'children': ['vms']}
-            }))
-            sys.exit(0)
-        
-        # Generate inventory
-        inventory = generate_inventory(terraform_outputs)
+        outputs = get_terraform_outputs()
+        inventory = empty_inventory() if outputs is None else generate_inventory(outputs)
         print(json.dumps(inventory, indent=2))
-    
-    elif len(sys.argv) == 2 and sys.argv[1].startswith('--host='):
-        # Single host lookup (not used in this implementation)
-        host = sys.argv[1].split('=', 1)[1]
+        return
+
+    # --host is required by the inventory script contract; all host variables are
+    # returned in _meta by --list, so there is nothing further to report here.
+    if len(sys.argv) == 3 and sys.argv[1] == '--host':
         print(json.dumps({}))
-    
-    else:
-        print("Usage: terraform.py --list", file=sys.stderr)
-        sys.exit(1)
+        return
+
+    if len(sys.argv) == 2 and sys.argv[1].startswith('--host='):
+        print(json.dumps({}))
+        return
+
+    print('Usage: terraform.py --list | --host <hostname>', file=sys.stderr)
+    sys.exit(1)
 
 
 if __name__ == '__main__':
     main()
-
