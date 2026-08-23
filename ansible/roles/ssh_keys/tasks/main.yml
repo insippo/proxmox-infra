@@ -17,6 +17,28 @@
     - ssh_keys_enforce | bool
     - (ssh_allowed_keys | length | int) == 0
 
+# group_vars ships placeholder keys so the role can be read without editing.
+# Enforcing them would replace authorized_keys with keys nobody holds the
+# private half of, which locks every operator out of the host.
+- name: Fail fast if the placeholder keys would be enforced (avoid lockout)
+  ansible.builtin.fail:
+    msg: >-
+      ssh_allowed_keys still contains the example placeholder keys. Replace them
+      with real public keys before setting ssh_keys_enforce=true, or you will be
+      locked out of {{ inventory_hostname }}.
+  when:
+    - ssh_keys_enforce | bool
+    - ssh_allowed_keys | select('search', '(?i)example') | list | length > 0
+
+- name: Warn when placeholder keys are being installed
+  ansible.builtin.debug:
+    msg: >-
+      ssh_allowed_keys contains example placeholder keys; they are being added to
+      {{ authorized_keys_path }} but grant access to nobody. Replace them with real keys.
+  when:
+    - not ssh_keys_enforce | bool
+    - ssh_allowed_keys | select('search', '(?i)example') | list | length > 0
+
 - name: Ensure allowed keys are present (non-enforcing)
   ansible.posix.authorized_key:
     user: root

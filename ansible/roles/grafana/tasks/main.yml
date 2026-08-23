@@ -3,6 +3,14 @@
 # Installs and configures Grafana for visualization
 # Safe to run repeatedly (idempotent)
 
+- name: Fail fast if the Grafana admin password is unset
+  ansible.builtin.fail:
+    msg: >-
+      grafana_admin_password is empty, so Grafana would keep its built-in
+      admin/admin credentials on {{ inventory_hostname }}. Set it from
+      ansible-vault before running this role.
+  when: grafana_admin_password | length == 0
+
 - name: Install prerequisites for Grafana repository
   ansible.builtin.apt:
     name:
@@ -53,7 +61,7 @@
         - name: Prometheus
           type: prometheus
           access: proxy
-          url: http://monitoring-prometheus:9090
+          url: {{ grafana_prometheus_url }}
           isDefault: true
           editable: true
     dest: /etc/grafana/provisioning/datasources/prometheus.yml
@@ -99,6 +107,26 @@
   loop: "{{ grafana_dashboard_files.files }}"
   notify: Restart grafana
   when: grafana_dashboard_files.matched > 0
+
+- name: Set the Grafana admin credentials
+  ansible.builtin.lineinfile:
+    path: /etc/grafana/grafana.ini
+    regexp: "^;?{{ item.key }}\\s*="
+    line: "{{ item.key }} = {{ item.value }}"
+    insertafter: '^\\[security\\]'
+    state: present
+    owner: root
+    group: grafana
+    mode: '0640'
+  loop:
+    - key: admin_user
+      value: "{{ grafana_admin_user }}"
+    - key: admin_password
+      value: "{{ grafana_admin_password }}"
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: true
+  notify: Restart grafana
 
 - name: Ensure Grafana service is enabled and running
   ansible.builtin.service:

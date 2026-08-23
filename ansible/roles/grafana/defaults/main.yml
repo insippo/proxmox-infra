@@ -4,3 +4,13 @@
 # Dashboard JSON files are read from the repository on the control node, not from
 # the managed host. role_path is <repo>/ansible/roles/grafana.
 grafana_dashboards_src: "{{ role_path }}/../../../monitoring/grafana/dashboards"
+
+# Admin credentials. There is no default password on purpose: Grafana ships with
+# admin/admin, and leaving it means anyone who can reach port 3000 is an admin.
+# Supply this from ansible-vault, not from a plain group_vars file.
+grafana_admin_user: admin
+grafana_admin_password: ""
+
+# Where Grafana looks for Prometheus. The previous value was the hardcoded name
+# "monitoring-prometheus", which does not resolve unless DNS happens to have it.
+grafana_prometheus_url: "http://127.0.0.1:9090"

@@ -22,8 +22,22 @@ Terraform provider nõuab `VM.Monitor` õigust, aga see ei ole Proxmox CLI-s keh
    - Kliki token'i peale
    - **Permissions** sektsioonis:
      - **Path**: `/`
-     - **Role**: Vali **Administrator** (sisaldab kõiki õigusi)
-     - Või lisa käsitsi: **VM.Monitor** privilege
+     - **Role**: ära vali **Administrator** — see annab kõik õigused kõigele.
+       Selle repo token on juba korra ajalukku lekkinud, mistõttu ülelaia
+       õigusega tokeni mõju on maksimaalne. Loo hoopis piiratud roll, mis
+       sisaldab ainult Terraformile vajalikke privileege:
+
+       ```bash
+       pveum role add TerraformProv -privs \
+         "VM.Allocate VM.Clone VM.Config.Disk VM.Config.Network \
+          VM.Config.Options VM.Config.Cloudinit VM.Monitor VM.PowerMgmt \
+          Datastore.Allocate Datastore.AllocateSpace Datastore.Audit"
+       pveum acl modify / -token 'terraform@pam!terraform' -role TerraformProv
+       ```
+
+       Kui tokenil on `privsep=1`, tuleb õigused anda **tokenile endale**, mitte
+       ainult omanik-kasutajale. Kontrolli skriptiga
+       `scripts/check-proxmox-token-permissions.sh`.
    - Salvesta
 
 4. **Testi:**

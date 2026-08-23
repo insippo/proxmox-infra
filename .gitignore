@@ -18,6 +18,10 @@ ansible/inventory.yml
 *.pkr.hcl.backup
 packer_cache/
 
+# Python
+__pycache__/
+*.py[cod]
+
 # IDE
 .vscode/
 .idea/

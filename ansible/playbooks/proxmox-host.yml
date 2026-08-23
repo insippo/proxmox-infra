@@ -57,6 +57,10 @@
         state: present
         create: false
         backrefs: false
+        backup: true
+        # Without this, a bad directive is written, the Restart sshd handler
+        # fails, and the next disconnect locks everyone out of the host.
+        validate: "/usr/sbin/sshd -t -f %s"
       loop: "{{ sshd_settings }}"
       notify: Restart sshd
 
@@ -67,6 +71,8 @@
         line: "{{ sshd_authorized_keys_directive }}"
         state: present
         create: false
+        backup: true
+        validate: "/usr/sbin/sshd -t -f %s"
       notify: Restart sshd
 
     - name: Ensure SSH service is enabled
