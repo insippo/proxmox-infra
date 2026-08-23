@@ -21,7 +21,9 @@ sshd_settings:
     value: "no"
   - option: PubkeyAuthentication
     value: "yes"
-  - option: ChallengeResponseAuthentication
+  # KbdInteractiveAuthentication is the current name; ChallengeResponseAuthentication
+  # is a deprecated alias that OpenSSH 8.7+ warns about and may eventually reject.
+  - option: KbdInteractiveAuthentication
     value: "no"
   - option: UsePAM
     value: "yes"
@@ -80,4 +82,3 @@ admin_user_ssh_keys:
 
 # Node Exporter for monitoring (disabled by default; read-only metrics).
 node_exporter_enabled: false
-

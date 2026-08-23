@@ -3,6 +3,14 @@
 # Installs and configures Grafana for visualization
 # Safe to run repeatedly (idempotent)
 
+- name: Fail fast if the Grafana admin password is unset
+  ansible.builtin.fail:
+    msg: >-
+      grafana_admin_password is empty, so Grafana would keep its built-in
+      admin/admin credentials on {{ inventory_hostname }}. Set it from
+      ansible-vault before running this role.
+  when: grafana_admin_password | length == 0
+
 - name: Install prerequisites for Grafana repository
   ansible.builtin.apt:
     name:
@@ -53,7 +61,7 @@
         - name: Prometheus
           type: prometheus
           access: proxy
-          url: http://monitoring-prometheus:9090
+          url: {{ grafana_prometheus_url }}
           isDefault: true
           editable: true
     dest: /etc/grafana/provisioning/datasources/prometheus.yml
@@ -70,32 +78,83 @@
     group: root
     mode: '0755'
 
+# An earlier version of this role wrote dashboard JSON into the provisioning
+# directory. Grafana reads everything there as a provider config, so any file
+# left behind by that version still stops Grafana from starting, no matter how
+# correct the rest of this role now is. Remove them.
+- name: Find stray dashboard JSON in the provisioning directory
+  ansible.builtin.find:
+    paths: /etc/grafana/provisioning/dashboards
+    patterns: "*.json"
+    file_type: file
+  register: grafana_stray_provisioning_json
+
+- name: Remove stray dashboard JSON from the provisioning directory
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ grafana_stray_provisioning_json.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  notify: Restart grafana
+
+- name: Create the dashboard content directory
+  ansible.builtin.file:
+    path: "{{ grafana_dashboards_dest }}"
+    state: directory
+    owner: root
+    group: grafana
+    mode: '0750'
+
 - name: Deploy dashboard provisioning configuration
-  ansible.builtin.copy:
-    src: dashboards.yml
+  ansible.builtin.template:
+    src: dashboards.yml.j2
     dest: /etc/grafana/provisioning/dashboards/dashboards.yml
     owner: root
-    group: root
-    mode: '0644'
+    group: grafana
+    mode: '0640'
   notify: Restart grafana
 
 - name: Find dashboard JSON files
   ansible.builtin.find:
-    paths: "{{ playbook_dir }}/../../../monitoring/grafana/dashboards"
+    paths: "{{ grafana_dashboards_src }}"
     patterns: "*.json"
     file_type: file
-  register: dashboard_files
+  register: grafana_dashboard_files
+  delegate_to: localhost
+  become: false
+  changed_when: false
 
 - name: Deploy dashboard JSON files
   ansible.builtin.copy:
     src: "{{ item.path }}"
-    dest: "/etc/grafana/provisioning/dashboards/{{ item.path | basename }}"
+    dest: "{{ grafana_dashboards_dest }}/{{ item.path | basename }}"
     owner: root
-    group: root
-    mode: '0644'
-  loop: "{{ dashboard_files.files }}"
+    group: grafana
+    mode: '0640'
+  loop: "{{ grafana_dashboard_files.files }}"
   notify: Restart grafana
-  when: dashboard_files.matched > 0
+  when: grafana_dashboard_files.matched > 0
+
+- name: Set the Grafana admin credentials
+  ansible.builtin.lineinfile:
+    path: /etc/grafana/grafana.ini
+    regexp: "^;?{{ item.key }}\\s*="
+    line: "{{ item.key }} = {{ item.value }}"
+    insertafter: '^\\[security\\]'
+    state: present
+    owner: root
+    group: grafana
+    mode: '0640'
+  loop:
+    - key: admin_user
+      value: "{{ grafana_admin_user }}"
+    - key: admin_password
+      value: "{{ grafana_admin_password }}"
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: true
+  notify: Restart grafana
 
 - name: Ensure Grafana service is enabled and running
   ansible.builtin.service:
@@ -109,6 +168,3 @@
     host: localhost
     delay: 2
     timeout: 10
-  delegate_to: localhost
-  when: grafana_installed.changed
-

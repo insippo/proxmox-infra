@@ -184,10 +184,19 @@ ssh -i ~/.ssh/proxmox_new_key root@<host_ip> "cat ~/.ssh/authorized_keys | grep 
    - Remove old key from `cloudinit_ssh_keys`
 
 3. **Commit Changes**
+
+   `terraform.tfvars` holds the Proxmox API token secret and must never be
+   committed. `.gitignore` blocks it; do not work around that with `git add -f`.
+   Commit only the Ansible key list:
+
    ```bash
-   git add ansible/group_vars/proxmox_hosts.yml terraform/terraform.tfvars
+   git add ansible/group_vars/proxmox_hosts.yml
    git commit -m "Rotate SSH keys: remove old key, add new key"
    ```
+
+   Keep the updated `cloudinit_ssh_keys` in your local `terraform.tfvars`. If the
+   key list needs to be shared, put it in `keys.auto.tfvars.example`, which is
+   exempt from the ignore rule and holds public keys only.
 
 ## Enforcement Mode: Cautions
 

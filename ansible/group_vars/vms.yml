@@ -16,9 +16,9 @@ vm_base_packages:
 docker_enabled: false  # Set to true to enable Docker on VMs
 docker_users: []       # List of users to add to docker group (examples only)
 
-# Prometheus monitoring (optional)
-prometheus_enabled: false  # Set to true to enable Prometheus on monitoring VM
-
-# Grafana monitoring (optional)
-grafana_enabled: false  # Set to true to enable Grafana on monitoring VM
-
+# Monitoring roles are applied to the whole `vms` group, so these flags must stay
+# false here. Enabling one group-wide installs that service on EVERY VM in the
+# inventory. Turn it on for a single host in host_vars/ instead — see
+# host_vars/monitoring_prometheus.yml and host_vars/monitoring_grafana.yml.
+prometheus_enabled: false
+grafana_enabled: false

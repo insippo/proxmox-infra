@@ -1,0 +1,46 @@
+# Managed by the prometheus role. Local edits are overwritten on the next run.
+# Adjust the variables in ansible/roles/prometheus/defaults/main.yml or in
+# group_vars/host_vars instead.
+
+global:
+  scrape_interval: {{ prometheus_scrape_interval }}
+  evaluation_interval: {{ prometheus_evaluation_interval }}
+  external_labels:
+{% for key, value in prometheus_external_labels.items() %}
+    {{ key }}: '{{ value }}'
+{% endfor %}
+
+# No Alertmanager and no rule files are configured: this repository ships no
+# alerting rules, so nothing here notices when a target goes down.
+
+scrape_configs:
+{% if prometheus_scrape_self %}
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+          - '127.0.0.1:9090'
+        labels:
+          component: 'prometheus-self'
+{% endif %}
+{% set node_targets = groups.get(prometheus_node_exporter_group, []) %}
+{% if node_targets %}
+
+  # node_exporter on each host in the {{ prometheus_node_exporter_group }} group.
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets:
+{% for host in node_targets %}
+          - '{{ hostvars[host].ansible_host | default(host) }}:{{ prometheus_node_exporter_port }}'
+{% endfor %}
+        labels:
+          component: 'host-metrics'
+{% endif %}
+{% if prometheus_proxmox_exporter_target %}
+
+  - job_name: 'proxmox-exporter'
+    static_configs:
+      - targets:
+          - '{{ prometheus_proxmox_exporter_target }}'
+        labels:
+          component: 'proxmox-metrics'
+{% endif %}

@@ -1,0 +1,18 @@
+# Managed by the grafana role. Local edits are overwritten.
+#
+# Grafana parses every file in provisioning/dashboards/ as a *provider* config,
+# so the dashboard JSON must live somewhere else — options.path below — or
+# Grafana fails to start while trying to read a dashboard as a provider.
+apiVersion: 1
+
+providers:
+  - name: 'Proxmox'
+    orgId: 1
+    folder: 'Proxmox'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: {{ grafana_dashboards_dest }}
+      foldersFromFilesStructure: false

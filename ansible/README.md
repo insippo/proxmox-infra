@@ -36,8 +36,17 @@ This directory contains Ansible playbooks and roles for managing Proxmox infrast
   - Reads Terraform outputs to discover VMs
   - Generates Ansible JSON inventory automatically
   - Groups VMs under `vms` group
+- **`inventory/group_vars`** - Symlink to `../group_vars`
+  - Ansible loads `group_vars/` from the directory holding the inventory source.
+    With `-i inventory/terraform.py` that is `inventory/`, so without this link
+    none of `group_vars/` is loaded and playbooks fail on the first `when:`
+    with `'docker_enabled' is undefined`. The static inventory at
+    `inventory.yml` finds `group_vars/` directly and does not need it.
+  - `vm-base.yml` asserts the variables are present, so a broken link reports
+    itself rather than surfacing as a Jinja error.
 - **When to use**: Many VMs, frequent changes, Terraform-managed infrastructure
-- **Requirements**: Terraform initialized, outputs available
+- **Requirements**: Terraform initialized, outputs available, collections installed
+  (`ansible-galaxy collection install -r requirements.yml -p collections`)
 - **Limitation**: Requires IP addresses in Terraform outputs (or use Proxmox API)
 
 ## Workflow: VM Lifecycle

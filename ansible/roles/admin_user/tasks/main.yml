@@ -21,6 +21,16 @@
     mode: "0700"
   when: admin_user_enabled | bool
 
+- name: Fail fast if the admin user would get only placeholder keys
+  ansible.builtin.fail:
+    msg: >-
+      admin_user_ssh_keys still contains the example placeholder keys, so
+      {{ admin_user_name }} would be created with passwordless sudo and no
+      usable way to log in. Replace them with real public keys.
+  when:
+    - admin_user_enabled | bool
+    - admin_user_ssh_keys | select('search', '(?i)example') | list | length > 0
+
 - name: Install admin authorized keys
   ansible.posix.authorized_key:
     user: "{{ admin_user_name }}"
@@ -42,4 +52,3 @@
     content: "{{ admin_user_name }} ALL=(ALL) NOPASSWD:ALL\n"
     validate: "visudo -cf %s"
   when: admin_user_enabled | bool
-

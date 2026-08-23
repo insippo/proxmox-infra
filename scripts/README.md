@@ -13,9 +13,11 @@ Scripts for creating Debian 12 cloud-init template in Proxmox using CLI/API.
 Set environment variables:
 
 ```bash
-export PROXMOX_HOST="192.168.150.75"
-export PROXMOX_API_TOKEN_ID="root@pam!terraform"
-export PROXMOX_API_TOKEN_SECRET="your-secret-here"
+export PROXMOX_HOST="proxmox.example.com"
+# Use a dedicated user, not root@pam.
+export PROXMOX_API_TOKEN_ID="terraform@pam!terraform"
+# Read the secret rather than putting it in shell history:
+read -rs PROXMOX_API_TOKEN_SECRET && export PROXMOX_API_TOKEN_SECRET
 export PROXMOX_NODE="pve"  # Optional, defaults to "pve"
 export VM_DEFAULT_STORAGE="local-lvm"  # Optional
 export VM_DEFAULT_BRIDGE="vmbr0"  # Optional

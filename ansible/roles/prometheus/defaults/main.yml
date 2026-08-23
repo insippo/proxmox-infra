@@ -1,0 +1,23 @@
+---
+# Defaults for the prometheus role.
+
+prometheus_scrape_interval: 15s
+prometheus_evaluation_interval: 15s
+
+prometheus_external_labels:
+  cluster: proxmox-cluster
+  environment: production
+
+# Hosts to scrape node_exporter on. Defaults to every host in the proxmox_hosts
+# group, which is where the node_exporter role is applied.
+prometheus_node_exporter_group: proxmox_hosts
+prometheus_node_exporter_port: 9100
+
+# Scrape Prometheus itself. Cheap, always reachable, and makes it obvious in the
+# UI whether scraping works at all.
+prometheus_scrape_self: true
+
+# A proxmox-exporter is not installed by any role in this repository, so no
+# target is configured by default. The pve_* panels in the bundled dashboards
+# stay empty until one exists. Set this to "host:port" once you run one.
+prometheus_proxmox_exporter_target: ""
