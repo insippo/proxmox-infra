@@ -2,7 +2,8 @@
 *.tfstate
 *.tfstate.*
 .terraform/
-.terraform.lock.hcl
+# .terraform.lock.hcl is intentionally NOT ignored: committing it pins provider
+# checksums so CI and every developer resolve the same provider build.
 *.tfvars
 !*.tfvars.example
 
@@ -37,3 +38,6 @@ secrets/
 .env
 .env.local
 
+
+# Ansible collections installed from requirements.yml
+ansible/collections/

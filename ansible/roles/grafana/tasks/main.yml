@@ -81,10 +81,13 @@
 
 - name: Find dashboard JSON files
   ansible.builtin.find:
-    paths: "{{ playbook_dir }}/../../../monitoring/grafana/dashboards"
+    paths: "{{ grafana_dashboards_src }}"
     patterns: "*.json"
     file_type: file
-  register: dashboard_files
+  register: grafana_dashboard_files
+  delegate_to: localhost
+  become: false
+  changed_when: false
 
 - name: Deploy dashboard JSON files
   ansible.builtin.copy:
@@ -93,9 +96,9 @@
     owner: root
     group: root
     mode: '0644'
-  loop: "{{ dashboard_files.files }}"
+  loop: "{{ grafana_dashboard_files.files }}"
   notify: Restart grafana
-  when: dashboard_files.matched > 0
+  when: grafana_dashboard_files.matched > 0
 
 - name: Ensure Grafana service is enabled and running
   ansible.builtin.service:
@@ -109,6 +112,3 @@
     host: localhost
     delay: 2
     timeout: 10
-  delegate_to: localhost
-  when: grafana_installed.changed
-

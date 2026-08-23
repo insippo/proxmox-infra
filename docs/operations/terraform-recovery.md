@@ -40,9 +40,11 @@ Manual cleanup in Proxmox was necessary because:
 ### Step 1: Identify Duplicate VMs
 
 ```bash
-# List all VMs in Proxmox
-curl -k -X GET -H "Authorization: PVEAPIToken=..." \
-  "https://proxmox:8006/api2/json/nodes/proxmox/qemu" | \
+# List all VMs in Proxmox.
+# Uses the shared helper so the token is never placed on the command line and
+# TLS is verified; see scripts/lib/proxmox.sh for the required environment.
+source scripts/lib/proxmox.sh
+proxmox_api GET "/nodes/${PROXMOX_NODE}/qemu" | \
   jq '.data[] | select(.name | contains("monitoring")) | {vmid, name, status}'
 ```
 

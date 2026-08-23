@@ -73,16 +73,18 @@
       changed_when: false
       failed_when: false
 
-    # Running services summary
-    - name: Get running services count
-      ansible.builtin.command:
-        cmd: systemctl list-units --type=service --state=running --no-pager | wc -l
-      register: running_services_count
-      changed_when: false
+    # Running services summary.
+    # `systemctl list-units | wc -l` counted the table header and the legend
+    # footer as services, so the reported number was several higher than the
+    # real one. service_facts gives a structured answer instead.
+    - name: Gather service facts
+      ansible.builtin.service_facts:
 
-    - name: Get failed services
+    # systemctl is the only way to ask for failed units; the systemd module
+    # manages a named service and cannot enumerate them.
+    - name: Get failed services # noqa: command-instead-of-module
       ansible.builtin.command:
-        cmd: systemctl list-units --type=service --state=failed --no-pager || echo "No failed services"
+        cmd: systemctl list-units --type=service --state=failed --no-pager --plain --no-legend
       register: failed_services
       changed_when: false
       failed_when: false
@@ -92,61 +94,62 @@
       ansible.builtin.set_fact:
         host_audit_section: |
           ## Host: {{ inventory_hostname }}
-          
+
           ### System Information
           - **OS**: {{ ansible_distribution }} {{ ansible_distribution_version }}
           - **Kernel**: {{ ansible_kernel }}
           - **Architecture**: {{ ansible_architecture }}
           - **Uptime**: {{ ansible_uptime_seconds | int // 86400 }} days
-          
+
           ### Proxmox Version
           ```
           {{ pveversion_output.stdout | default('Not available') }}
           ```
-          
+
           ### CPU Information
           ```
           {{ cpu_info.stdout }}
           ```
-          
+
           ### Memory Summary
           ```
           {{ memory_info.stdout }}
           ```
-          
+
           ### Storage Devices
           **NVMe Devices:**
           ```
           {{ nvme_devices.stdout }}
           ```
-          
+
           **SSD/HDD Devices:**
           ```
           {{ ssd_devices.stdout }}
           ```
-          
+
           **ZFS Pools:**
           ```
           {{ zfs_pools.stdout }}
           ```
-          
+
           ### Network Interfaces
           ```
           {{ network_interfaces.stdout }}
           ```
-          
+
           **Network Bridges:**
           ```
           {{ network_bridges.stdout }}
           ```
-          
+
           ### Services
-          - **Running services**: {{ running_services_count.stdout | trim }}
-          - **Failed services**: 
+          - **Running services**: {{ ansible_facts.services.values()
+            | selectattr("state", "equalto", "running") | list | length }}
+          - **Failed services**:
           ```
-          {{ failed_services.stdout }}
+          {{ failed_services.stdout | trim | default("none", true) }}
           ```
-          
+
           ---
 
   # Write all results to file in a single task
@@ -155,9 +158,9 @@
       ansible.builtin.set_fact:
         complete_audit_report: |
           # Proxmox Host Audit Report
-          
+
           Generated: {{ ansible_date_time.iso8601 }}
-          
+
           {% for host in groups['proxmox_hosts'] %}
           {{ hostvars[host]['host_audit_section'] | default('') }}
           {% endfor %}
@@ -171,4 +174,3 @@
         mode: '0644'
       delegate_to: localhost
       run_once: true
-

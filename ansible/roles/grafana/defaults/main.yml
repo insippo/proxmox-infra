@@ -1,0 +1,6 @@
+---
+# Defaults for the grafana role.
+
+# Dashboard JSON files are read from the repository on the control node, not from
+# the managed host. role_path is <repo>/ansible/roles/grafana.
+grafana_dashboards_src: "{{ role_path }}/../../../monitoring/grafana/dashboards"
