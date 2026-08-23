@@ -78,6 +78,26 @@
     group: root
     mode: '0755'
 
+# An earlier version of this role wrote dashboard JSON into the provisioning
+# directory. Grafana reads everything there as a provider config, so any file
+# left behind by that version still stops Grafana from starting, no matter how
+# correct the rest of this role now is. Remove them.
+- name: Find stray dashboard JSON in the provisioning directory
+  ansible.builtin.find:
+    paths: /etc/grafana/provisioning/dashboards
+    patterns: "*.json"
+    file_type: file
+  register: grafana_stray_provisioning_json
+
+- name: Remove stray dashboard JSON from the provisioning directory
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ grafana_stray_provisioning_json.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  notify: Restart grafana
+
 - name: Create the dashboard content directory
   ansible.builtin.file:
     path: "{{ grafana_dashboards_dest }}"
