@@ -49,31 +49,55 @@
         msg: "{{ chrony_note }}"
       # TODO: Add chrony.conf template once NTP sources are defined.
 
-    - name: Harden SSH daemon for key-only access on LAN
-      ansible.builtin.lineinfile:
-        path: "{{ sshd_config_path }}"
-        regexp: "^{{ item.option }}\\s"
-        line: "{{ item.option }} {{ item.value }}"
-        state: present
-        create: false
-        backrefs: false
+    # Hardening goes in a drop-in, not into sshd_config itself. Debian 12
+    # sshd_config starts with "Include /etc/ssh/sshd_config.d/*.conf" and sshd
+    # honours the FIRST occurrence of a directive. Appending to the end of
+    # sshd_config therefore lands after the Include and has no effect, while the
+    # task still reports "changed". The 10- prefix sorts ahead of any vendor or
+    # cloud-init drop-in, so these values win.
+    #
+    # sshd_settings in group_vars remains the single source of truth; this
+    # renders it rather than replacing it.
+    - name: Ensure the SSH drop-in directory exists
+      ansible.builtin.file:
+        path: "{{ sshd_config_path | dirname }}/sshd_config.d"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy SSH hardening drop-in
+      ansible.builtin.copy:
+        dest: "{{ sshd_config_path | dirname }}/sshd_config.d/10-hardening.conf"
+        owner: root
+        group: root
+        mode: '0644'
         backup: true
-        # Without this, a bad directive is written, the Restart sshd handler
-        # fails, and the next disconnect locks everyone out of the host.
+        # Catches a bad directive before the Restart sshd handler runs and
+        # locks everyone out of the host.
         validate: "/usr/sbin/sshd -t -f %s"
-      loop: "{{ sshd_settings }}"
+        content: |
+          # Managed by ansible/playbooks/proxmox-host.yml. Local edits are overwritten.
+          {% for item in sshd_settings %}
+          {{ item.option }} {{ item.value }}
+          {% endfor %}
+          {{ sshd_authorized_keys_directive }}
       notify: Restart sshd
 
-    - name: Ensure SSH daemon uses authorized_keys (avoid surprises)
-      ansible.builtin.lineinfile:
-        path: "{{ sshd_config_path }}"
-        regexp: "^AuthorizedKeysFile\\s"
-        line: "{{ sshd_authorized_keys_directive }}"
-        state: present
-        create: false
-        backup: true
-        validate: "/usr/sbin/sshd -t -f %s"
-      notify: Restart sshd
+    # The drop-in only takes effect if sshd_config actually includes the directory.
+    - name: Verify sshd reads the drop-in directory
+      ansible.builtin.command: grep -qE '^\s*Include\s+.*sshd_config\.d/' {{ sshd_config_path }}
+      register: sshd_include_present
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if the drop-in would be ignored
+      ansible.builtin.fail:
+        msg: >-
+          {{ sshd_config_path }} on {{ inventory_hostname }} has no Include for
+          sshd_config.d, so 10-hardening.conf is not read and SSH is NOT hardened.
+          Add "Include /etc/ssh/sshd_config.d/*.conf" near the top of sshd_config.
+      when: sshd_include_present.rc != 0
 
     - name: Ensure SSH service is enabled
       ansible.builtin.service:

@@ -67,25 +67,53 @@
       community.general.timezone:
         name: "{{ vm_timezone }}"
 
-    # Basic SSH safety (LAN-friendly, not over-hardened)
-    # Note: VMs already have SSH keys from cloud-init, this just adds safety
-    - name: Ensure SSH password authentication is disabled (key-only)
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: "^PasswordAuthentication\\s"
-        line: "PasswordAuthentication no"
-        state: present
-        create: false
+    # Basic SSH safety (LAN-friendly, not over-hardened).
+    #
+    # Written as a drop-in rather than by editing sshd_config directly. Debian 12
+    # sshd_config opens with "Include /etc/ssh/sshd_config.d/*.conf", cloud-init
+    # drops 50-cloud-init.conf in there with PasswordAuthentication yes, and sshd
+    # honours the FIRST occurrence of a directive, not the last. Appending to the
+    # end of sshd_config therefore lands after the Include and changes nothing,
+    # while the task still reports "changed". The 10- prefix sorts ahead of
+    # cloud-init's 50-, so these values win.
+    - name: Ensure the SSH drop-in directory exists
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Deploy SSH hardening drop-in
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/10-hardening.conf
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+        validate: "/usr/sbin/sshd -t -f %s"
+        content: |
+          # Managed by ansible/playbooks/vm-base.yml. Local edits are overwritten.
+          PasswordAuthentication no
+          PermitRootLogin no
       notify: Restart sshd
 
-    - name: Ensure SSH root login is disabled (use regular user)
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: "^PermitRootLogin\\s"
-        line: "PermitRootLogin no"
-        state: present
-        create: false
-      notify: Restart sshd
+    # sshd_config is authoritative only if it actually reads the drop-in directory.
+    # A cloned template whose sshd_config predates the Include convention would
+    # silently ignore the file written above.
+    - name: Verify sshd reads the drop-in directory
+      ansible.builtin.command: grep -qE '^\s*Include\s+/etc/ssh/sshd_config\.d/' /etc/ssh/sshd_config
+      register: sshd_include_present
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if the drop-in would be ignored
+      ansible.builtin.fail:
+        msg: >-
+          /etc/ssh/sshd_config on {{ inventory_hostname }} has no Include for
+          sshd_config.d, so 10-hardening.conf is not read and SSH is NOT hardened.
+          Add "Include /etc/ssh/sshd_config.d/*.conf" near the top of sshd_config.
+      when: sshd_include_present.rc != 0
 
     - name: Ensure SSH service is enabled
       ansible.builtin.service:
