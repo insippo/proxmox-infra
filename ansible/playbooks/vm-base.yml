@@ -20,6 +20,21 @@
       when: grafana_enabled | bool
 
   pre_tasks:
+    # group_vars only load when Ansible finds them next to the inventory source.
+    # If that link is ever broken again, fail here with a clear message instead of
+    # a Jinja "'docker_enabled' is undefined" error twenty lines later.
+    - name: Assert that group_vars were loaded
+      ansible.builtin.assert:
+        that:
+          - docker_enabled is defined
+          - vm_base_packages is defined
+          - vm_timezone is defined
+        fail_msg: >-
+          group_vars were not loaded for {{ inventory_hostname }}. Ansible looks for
+          group_vars/ next to the inventory source; check that
+          ansible/inventory/group_vars exists (it is a symlink to ../group_vars).
+        quiet: true
+
     - name: Update package cache (keeps installs fast and current)
       ansible.builtin.apt:
         update_cache: true
