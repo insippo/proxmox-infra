@@ -19,14 +19,20 @@
     group: prometheus
     mode: '0755'
 
-- name: Deploy Prometheus configuration from example
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../monitoring/prometheus/prometheus.yml.example"
+# Previously this copied monitoring/prometheus/prometheus.yml.example verbatim,
+# so every run overwrote the live configuration with placeholder targets
+# (proxmox-host-1.example.com and friends) and restarted the service. Prometheus
+# came up healthy and scraped nothing. Render real targets from the inventory
+# instead, and refuse to install a config promtool rejects.
+- name: Deploy Prometheus configuration
+  ansible.builtin.template:
+    src: prometheus.yml.j2
     dest: /etc/prometheus/prometheus.yml
     owner: prometheus
     group: prometheus
     mode: '0644'
-    remote_src: false
+    backup: true
+    validate: promtool check config %s
   notify: Restart prometheus
 
 - name: Ensure Prometheus service is enabled and running

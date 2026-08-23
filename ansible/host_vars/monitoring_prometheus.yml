@@ -1,0 +1,7 @@
+---
+# Host-specific: only this VM runs Prometheus.
+#
+# Keep prometheus_enabled here rather than in group_vars/vms.yml. The roles are
+# applied to the whole `vms` group, so setting the flag group-wide installs
+# Prometheus on every VM in the inventory.
+prometheus_enabled: true

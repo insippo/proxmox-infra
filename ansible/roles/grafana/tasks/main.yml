@@ -78,13 +78,21 @@
     group: root
     mode: '0755'
 
+- name: Create the dashboard content directory
+  ansible.builtin.file:
+    path: "{{ grafana_dashboards_dest }}"
+    state: directory
+    owner: root
+    group: grafana
+    mode: '0750'
+
 - name: Deploy dashboard provisioning configuration
-  ansible.builtin.copy:
-    src: dashboards.yml
+  ansible.builtin.template:
+    src: dashboards.yml.j2
     dest: /etc/grafana/provisioning/dashboards/dashboards.yml
     owner: root
-    group: root
-    mode: '0644'
+    group: grafana
+    mode: '0640'
   notify: Restart grafana
 
 - name: Find dashboard JSON files
@@ -100,10 +108,10 @@
 - name: Deploy dashboard JSON files
   ansible.builtin.copy:
     src: "{{ item.path }}"
-    dest: "/etc/grafana/provisioning/dashboards/{{ item.path | basename }}"
+    dest: "{{ grafana_dashboards_dest }}/{{ item.path | basename }}"
     owner: root
-    group: root
-    mode: '0644'
+    group: grafana
+    mode: '0640'
   loop: "{{ grafana_dashboard_files.files }}"
   notify: Restart grafana
   when: grafana_dashboard_files.matched > 0

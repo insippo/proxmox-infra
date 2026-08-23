@@ -1,0 +1,12 @@
+---
+# Host-specific: only this VM runs Grafana.
+# See the note in host_vars/monitoring_prometheus.yml about why this is not in
+# group_vars/vms.yml.
+grafana_enabled: true
+
+# Required — the role refuses to run with an empty password, because Grafana
+# would otherwise keep its built-in admin/admin. Supply it from ansible-vault:
+#   ansible-vault encrypt_string 'the-password' --name grafana_admin_password
+# grafana_admin_password: !vault |
+#   $ANSIBLE_VAULT;1.1;AES256
+#   ...

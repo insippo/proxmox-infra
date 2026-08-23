@@ -1,16 +1,31 @@
 ---
 # Defaults for the grafana role.
 
-# Dashboard JSON files are read from the repository on the control node, not from
-# the managed host. role_path is <repo>/ansible/roles/grafana.
+# Where dashboard JSON is read from on the control node. role_path is
+# <repo>/ansible/roles/grafana, so three levels up is the repository root.
 grafana_dashboards_src: "{{ role_path }}/../../../monitoring/grafana/dashboards"
 
-# Admin credentials. There is no default password on purpose: Grafana ships with
-# admin/admin, and leaving it means anyone who can reach port 3000 is an admin.
-# Supply this from ansible-vault, not from a plain group_vars file.
+# Where dashboard JSON is written on the managed host. This must NOT be
+# /etc/grafana/provisioning/dashboards: Grafana parses everything in that
+# directory as a provider config and fails to start when it meets a dashboard.
+grafana_dashboards_dest: /var/lib/grafana/dashboards
+
+# Admin credentials.
+#
+# Note the limitation: Grafana reads admin_password from grafana.ini only when it
+# first initialises its database. On a Grafana that has already run, changing this
+# has no effect and the existing password stays in place — reset it with
+#   grafana-cli admin reset-admin-password <new>
+# There is deliberately no default: Grafana ships with admin/admin, and leaving
+# that means anyone who can reach port 3000 is an admin. Supply it from
+# ansible-vault.
 grafana_admin_user: admin
 grafana_admin_password: ""
 
-# Where Grafana looks for Prometheus. The previous value was the hardcoded name
-# "monitoring-prometheus", which does not resolve unless DNS happens to have it.
-grafana_prometheus_url: "http://127.0.0.1:9090"
+# Where Grafana looks for Prometheus. Terraform builds Prometheus and Grafana as
+# two separate VMs, so localhost is only right for a combined install; prefer the
+# address the inventory reports for the Prometheus host when there is one.
+grafana_prometheus_url: >-
+  http://{{ hostvars['monitoring_prometheus']['ansible_host']
+            if 'monitoring_prometheus' in hostvars
+            else '127.0.0.1' }}:9090

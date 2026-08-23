@@ -16,61 +16,95 @@ This guide walks through the complete process of adding a new VM to the infrastr
 Open `terraform/main.tf` and add a new VM resource:
 
 ```hcl
-resource "proxmox_vm_qemu" "my_new_vm" {
-  name        = "my-new-vm"
-  target_node = var.proxmox_node
-  clone       = var.base_template
+resource "proxmox_virtual_environment_vm" "my_new_vm" {
+  name      = "my-new-vm"
+  node_name = var.proxmox_node
+  vm_id     = null # Auto-assign VM ID
 
-  # VM compute resources
-  cores   = var.vm_default_cores
-  sockets = var.vm_default_sockets
-  cpu     = "host"
-  memory  = var.vm_default_memory
-
-  # VM storage
-  disk {
-    storage = var.vm_default_storage
-    type    = "scsi"
-    size    = var.vm_default_disk_size
+  # Clone from the template built by scripts/create-debian12-template.sh
+  clone {
+    vm_id = var.base_template_vm_id
   }
 
-  # Network configuration
-  network {
-    model  = "virtio"
+  cpu {
+    cores   = var.vm_default_cores
+    sockets = var.vm_default_sockets
+    type    = "host"
+  }
+
+  memory {
+    dedicated = var.vm_default_memory
+  }
+
+  # The disk comes from the cloned template; do not declare one here.
+
+  network_device {
     bridge = var.vm_default_bridge
   }
 
-  # Cloud-init configuration
-  agent    = 1
-  os_type  = "cloud-init"
-  ciuser   = var.cloudinit_user
-  sshkeys  = join("\n", var.cloudinit_ssh_keys)
-  ipconfig0 = "ip=dhcp"
+  # Required for the guest to report its IP address, which the Ansible
+  # inventory reads.
+  agent {
+    enabled = true
+  }
+
+  initialization {
+    datastore_id = var.vm_default_storage
+    user_account {
+      username = var.cloudinit_user
+      keys     = var.cloudinit_ssh_keys
+    }
+    ip_config {
+      ipv4 {
+        address = "dhcp"
+      }
+    }
+  }
 }
 ```
 
 ### 1.2 Add VM to Terraform Outputs
 
-Update `terraform/main.tf` outputs section:
+Add the VM to the `vms` output in `terraform/main.tf`. Read the address from the
+guest agent rather than hardcoding one — the Ansible inventory skips hosts whose
+address is null, so a VM whose agent has not reported yet is left out instead of
+being added unreachable.
+
+First add a `locals` entry alongside the existing ones:
 
 ```hcl
-output "vms" {
-  value = {
-    example_vm = {
-      name        = proxmox_vm_qemu.example_vm.name
-      ssh_user    = var.cloudinit_user
-      ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
-    }
-    my_new_vm = {
-      name        = proxmox_vm_qemu.my_new_vm.name
-      ssh_user    = var.cloudinit_user
-      ansible_host = "<replace_with_vm_ip_or_use_proxmox_api>"
-    }
+locals {
+  vm_ipv4 = {
+    # ... existing entries ...
+    my_new_vm = try([
+      for ips in proxmox_virtual_environment_vm.my_new_vm.ipv4_addresses :
+      ips[0] if length(ips) > 0 && ips[0] != "127.0.0.1"
+    ][0], null)
   }
 }
 ```
 
-**Note**: Replace `<replace_with_vm_ip_or_use_proxmox_api>` with actual IP after VM is created, or use Proxmox API for discovery.
+Then reference it from the output:
+
+```hcl
+output "vms" {
+  value = merge(
+    {
+      # ... existing entries ...
+      my_new_vm = {
+        name         = proxmox_virtual_environment_vm.my_new_vm.name
+        ssh_user     = var.cloudinit_user
+        ansible_host = local.vm_ipv4.my_new_vm
+      }
+    },
+    # ... existing conditional blocks ...
+  )
+}
+```
+
+**Note**: `ansible_host` is `null` until the QEMU guest agent inside the VM
+reports an address. If the VM never appears in `ansible-inventory --list`, check
+that `qemu-guest-agent` is installed and running in the template.
 
 ## Step 2: Apply Terraform
 
@@ -158,19 +192,22 @@ all:
 
 If using dynamic inventory:
 
-1. Update Terraform outputs with actual IP:
-   ```hcl
-   my_new_vm = {
-     name        = proxmox_vm_qemu.my_new_vm.name
-     ssh_user    = var.cloudinit_user
-     ansible_host = "192.168.1.100"  # Actual IP
-   }
+Nothing to edit by hand: the output added in Step 1.2 reads the address from the
+guest agent, so the VM appears in the inventory once it boots and the agent
+reports.
+
+1. Refresh the Terraform state so the address is current:
+   ```bash
+   cd terraform && terraform refresh
    ```
 
 2. Verify dynamic inventory:
    ```bash
    ansible-inventory -i ansible/inventory/terraform.py --list
    ```
+
+   If the VM is missing, the script says why on stderr — usually that the guest
+   agent has not reported an address yet. Check `qemu-guest-agent` in the VM.
 
 ## Step 5: Run Base Configuration
 

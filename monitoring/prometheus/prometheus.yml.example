@@ -1,6 +1,13 @@
-# Prometheus configuration example for Proxmox monitoring
-# Copy to prometheus.yml and update with your actual targets
-# No credentials or real IPs in this file - use placeholders only
+# Prometheus configuration EXAMPLE, for reading and for hand-rolled installs.
+#
+# This file is NOT what the Ansible prometheus role deploys. The role renders
+# ansible/roles/prometheus/templates/prometheus.yml.j2 with targets taken from the
+# inventory. It used to copy this file verbatim, which meant every run replaced
+# the live config with the placeholder targets below and restarted the service:
+# Prometheus came up healthy and scraped nothing.
+#
+# Change the role's variables, not this file, if you are using Ansible.
+# No credentials or real IPs here - placeholders only.
 
 global:
   scrape_interval: 15s
