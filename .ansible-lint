@@ -20,6 +20,11 @@ exclude_paths:
   - .github/
   - docs/
   - terraform/
+  # Collections installed from requirements.yml are upstream source, not ours.
+  # Without this ansible-lint walks into them and reports thousands of
+  # violations from community.general's own test fixtures.
+  - collections/
+  - ansible/collections/
 
 # Profile for basic checks
 profile: production
