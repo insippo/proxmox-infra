@@ -37,7 +37,7 @@ Acceptable goals — each one is a command whose output decides pass/fail:
 |---|---|
 | Hosts match declared configuration | `ansible-playbook ... --check --diff` reports no changes |
 | Infrastructure matches code | `terraform plan` reports no changes |
-| Repository is lintable | CI quality gate is green (see `.github/workflows/ci.yml`) |
+| Repository is lintable | CI quality gate is green (see `.github/workflows/ci.yml`) — currently unattainable, see [Reviewer](#4-reviewer--something-that-rejects-bad-work) |
 | Hosts are healthy | Prometheus targets up, no firing alerts (see `monitoring/`) |
 | Storage is policy-compliant | No configuration violates `docs/storage-policy.md` |
 
@@ -85,7 +85,19 @@ in `.github/workflows/ci.yml` is that reviewer: `ansible-lint`, `terraform fmt -
 The reviewer is a machine, not the agent's own judgement. An agent may not merge on the
 grounds that it believes the work is correct.
 
-Current gaps in the reviewer are listed under [Gaps](#gaps-to-close) below.
+**The reviewer currently does not work.** The `Ansible Lint` job has failed on every run
+of the quality gate since it was added, including every commit on `master`. A gate that
+rejects everything gates nothing: it cannot distinguish a good change from a bad one, so
+nobody can use it as a merge condition, and in practice it is ignored. Known causes:
+`roles_path` is not configured, so `ansible-lint` cannot resolve `ssh_keys`, `docker`, and
+the other roles from `ansible/playbooks/`; the `ansible.posix` collection is not installed
+in CI, so `ansible.posix.authorized_key` does not resolve; and `profile: production` in
+`.ansible-lint` enforces rules the roles do not currently satisfy, alongside trailing
+whitespace and blank-line findings.
+
+Fixing this is the first prerequisite for anything in this document. Until the gate is
+green on `master`, "CI is green" is not a usable metric and no automated identity should
+be granted anything beyond read access.
 
 ## Rights, not prompts
 
@@ -233,6 +245,9 @@ The environment described above is not fully in place. Current state:
       catch a ZFS datastore on consumer hardware, `ssh_keys_enforce: true`, or a removed
       `prevent_destroy`. These are the changes worth failing a build over — add a policy
       check job.
+- [ ] **The quality gate has never passed.** `Ansible Lint` has failed on all 19 runs on
+      `master`. Fix `roles_path`, install `ansible.posix` in CI, and either satisfy or
+      explicitly relax the `production` profile. This blocks every other item here.
 - [ ] **No scheduled drift run.** The read-only checks above exist but are only run by
       hand, which means they are run after an incident rather than before one.
 - [ ] **No read-only Ansible user defined.** `ansible/group_vars/proxmox_hosts.yml`
