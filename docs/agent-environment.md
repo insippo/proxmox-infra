@@ -255,6 +255,12 @@ The environment described above is not fully in place. Current state:
 
 Close these before granting any agent scheduled or unattended access to the hosts.
 
+## Obsidian copy
+
+An Obsidian-formatted version of this document — split into linked notes with frontmatter,
+callouts, and task checkboxes — lives in `docs/obsidian/`. Copy that folder into a vault, or
+open `docs/` as one. This file remains canonical; update it first.
+
 ## Document control
 
 **Review frequency:** whenever agent access, API tokens, or CI gating changes.
