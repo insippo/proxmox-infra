@@ -1,214 +1,218 @@
-# How to Update the Garage Home Assistant Stack
+# Garaaži Home Assistanti uuendamine
 
-Runbook for applying updates to the **Garaaž HA** instance (Home Assistant OS
-running as a VM on Proxmox) and to the Zigbee/Wi-Fi devices it manages.
+Tööjuhend **Garaaž HA** instantsi (Proxmoxis VM-ina jooksev Home Assistant OS)
+ja selle hallatavate Zigbee/Wi-Fi seadmete uuendamiseks.
 
-Home Assistant announces pending updates as a single notification, e.g.:
+Home Assistant teatab ootel uuendustest ühe teavitusega, näiteks:
 
 > 🔧 Garaaž HA — uuendusi ootel
 > 11 uuendust: Home Assistant Core, Home Assistant Operating System, Zigbee2MQTT, …
 
-That notification is **not** an instruction to press "Update all". Updates are
-applied in a fixed order, one layer at a time, with a rollback path in place
-before the first one starts.
+See teavitus **ei ole** korraldus vajutada „Uuenda kõik". Uuendused paigaldatakse
+kindlas järjekorras, üks kiht korraga, ja taastetee peab olema paigas enne, kui
+esimenegi neist algab.
 
-## Rules
+## Reeglid
 
-- **Never bulk-update.** One layer at a time, verify, then continue.
-- **Never update device firmware you cannot physically reach.** A failed Shelly
-  flash can require a power cycle or a factory reset at the device.
-- **Never update while the load is in use.** The printer power switch is not
-  touched during a print job.
-- **Read release notes before Core and Zigbee2MQTT.** Both ship breaking
-  changes in normal releases.
-- **Never start an update you cannot wait out.** Every step below finishes on
-  its own schedule, not yours. See *Time budget*.
-- **One update session, one log entry.** See
+- **Mitte kunagi ei uuenda kõike korraga.** Üks kiht korraga, kontrolli, siis edasi.
+- **Ära uuenda püsivara seadmel, milleni sa füüsiliselt ei ulatu.** Ebaõnnestunud
+  Shelly välkimine võib nõuda voolu väljalülitamist või tehaseseadete taastamist
+  seadme juures kohapeal.
+- **Ära uuenda, kui koormus on kasutuses.** Printeri toitelülitit ei puututa
+  printimise ajal.
+- **Loe väljalaskemärkmeid enne Core'i ja Zigbee2MQTT-d.** Mõlemad toovad
+  tavaväljalasetes murdvaid muudatusi.
+- **Ära alusta uuendust, mida sa ei suuda lõpuni oodata.** Iga alljärgnev samm
+  lõpeb omas tempos, mitte sinu omas. Vaata *Ajaeelarve*.
+- **Üks uuendussessioon, üks logikanne.** Vaata
   `docs/operations/home-assistant-update-log.md`.
 
-## Time budget
+## Ajaeelarve
 
-**Plan a half-day window, not an hour.** These updates are slow, and most of
-the elapsed time is waiting, not clicking. Rushing is what turns a routine
-update into an outage: the common failure is an operator who decides something
-is stuck, restarts or power-cycles mid-operation, and breaks it for real.
+**Planeeri pool päeva, mitte tund.** Need uuendused on aeglased ja suurem osa
+kuluvast ajast on ootamine, mitte klikkimine. Kiirustamine on see, mis muudab
+rutiinse uuenduse rikkeks: tüüpiline ebaõnnestumine on operaator, kes otsustab,
+et miski on kinni jooksnud, teeb keset operatsiooni restardi või võtab voolu ära
+— ja lõhub asja päriselt.
 
-| Step | Realistic time | What drives it |
+| Samm | Reaalne aeg | Mis seda määrab |
 | --- | --- | --- |
-| 0 – Backup + snapshot | 10–30 min | Backup size; copying it off the VM |
-| 1 – Core | 10–20 min, **plus DB migration** | See below — migration can run for hours |
-| 2 – OS | 15–30 min | Download, reboot, slower first boot |
-| 3 – Add-ons | 5–15 min each | Z2M network settling is extra, see below |
-| 4 – Better Thermostat | 5 min, plus a heating cycle | Calibration re-establishes over time |
-| 5 – Shelly firmware | 5–10 min per device | Reboot and Wi-Fi reconnect per device |
+| 0 – Varukoopia + snapshot | 10–30 min | Varukoopia suurus, väljakopeerimine VM-ist |
+| 1 – Core | 10–20 min, **pluss AB migratsioon** | Vaata allpool — migratsioon võib kesta tunde |
+| 2 – OS | 15–30 min | Allalaadimine, alglaadimine, aeglasem esimene boot |
+| 3 – Lisandid | 5–15 min igaüks | Z2M võrgu settimine tuleb lisaks, vaata allpool |
+| 4 – Better Thermostat | 5 min, pluss üks küttetsükkel | Kalibratsioon taastub tasapisi |
+| 5 – Shelly püsivara | 5–10 min seadme kohta | Alglaadimine ja Wi-Fi taasühendus iga seadme kohta |
 
-Full settling — every device reporting normally again — can take **up to 24
-hours** after the last change. Do not judge the result on the first ten
-minutes.
+Täielik settimine — kõik seadmed jälle normaalselt raporteerimas — võib pärast
+viimast muudatust võtta **kuni 24 tundi**. Ära hinda tulemust esimese kümne
+minuti järgi.
 
-**Splitting the batch across several days is normal and preferred.** There is
-no requirement to clear all pending updates in one sitting. Core and OS in one
-session, add-ons in another, device firmware in a third is a perfectly good
-plan, and it makes it obvious which change caused a problem.
+**Partii jagamine mitmele päevale on normaalne ja eelistatud.** Ei ole nõuet
+kõiki ootel uuendusi ühe korraga ära teha. Core ja OS ühes sessioonis, lisandid
+teises, seadmete püsivara kolmandas on täiesti korralik plaan — ja nii on ka
+selgelt näha, milline muudatus probleemi tekitas.
 
-Do not start on an evening when the garage is needed the next morning, and do
-not start remotely.
+Ära alusta õhtul, kui garaaži on järgmisel hommikul vaja, ja ära alusta
+eemalt.
 
-## Step 0 – Rollback path (mandatory)
+## Samm 0 – Taastetee (kohustuslik)
 
-Do this before touching anything.
+Tee see ära, enne kui midagi puutud.
 
-1. **Home Assistant backup**: Settings → System → Backups → *Create backup*
-   (full). Confirm it completed and note the size.
-2. **Copy the backup off the VM**. A backup that only exists inside the VM you
-   are about to break is not a backup.
-3. **Proxmox snapshot** of the HA VM, taken while the VM is running:
+1. **Home Assistanti varukoopia**: Seaded → Süsteem → Varukoopiad →
+   *Loo varukoopia* (täielik). Veendu, et see lõppes edukalt, ja pane suurus kirja.
+2. **Kopeeri varukoopia VM-ist välja.** Varukoopia, mis on olemas ainult selle
+   VM-i sees, mida sa kohe lõhkuma hakkad, ei ole varukoopia.
+3. **Proxmoxi hetktõmmis (snapshot)** HA VM-ist, tehtud töötava VM-i pealt:
 
    ```bash
-   # on the Proxmox host, <vmid> = the Home Assistant VM
-   qm snapshot <vmid> pre-ha-update-$(date +%Y%m%d) --description "before HA update batch"
+   # Proxmoxi hostil, <vmid> = Home Assistanti VM
+   qm snapshot <vmid> pre-ha-update-$(date +%Y%m%d) --description "enne HA uuenduste partiid"
    ```
 
-4. **Zigbee2MQTT coordinator backup**: Z2M writes `coordinator_backup.json`
-   into its data directory on every start. Confirm it exists and is current
-   before updating Z2M.
+4. **Zigbee2MQTT koordinaatori varukoopia**: Z2M kirjutab igal käivitusel oma
+   andmekataloogi faili `coordinator_backup.json`. Veendu enne Z2M uuendamist,
+   et see on olemas ja värske.
 
-Rollback = restore the Proxmox snapshot (whole appliance) or restore the HA
-backup (configuration only). Delete the snapshot once the stack is verified
-healthy — snapshots left on disk grow and violate `docs/storage-policy.md`.
+Tagasikerimine = taasta Proxmoxi snapshot (kogu seade) või taasta HA varukoopia
+(ainult konfiguratsioon). Kustuta snapshot, kui oled veendunud, et kõik töötab —
+kettale jäetud snapshotid kasvavad ja rikuvad `docs/storage-policy.md` reegleid.
 
-## Step 1 – Home Assistant Core
+## Samm 1 – Home Assistant Core
 
-Read the release notes for **every** version between the installed one and the
-target, specifically the "Breaking changes" section.
+Loe väljalaskemärkmed **iga** versiooni kohta paigaldatu ja sihtversiooni vahel,
+eriti jaotist „Breaking changes".
 
-Settings → System → Updates → *Home Assistant Core* → Update.
-Leave "Create backup before updating" enabled.
+Seaded → Süsteem → Uuendused → *Home Assistant Core* → Uuenda.
+Jäta „Loo enne uuendamist varukoopia" sisse lülitatuks.
 
-**Before updating Core, check custom integrations.** Custom components are the
-usual cause of a broken start after a Core upgrade. For this instance that
-means **Better Thermostat** (HACS) and the **Home Assistant MCP Server**:
-confirm the version you are moving to supports the target Core release. If it
-does not, update the integration first, or hold Core back.
+**Enne Core'i uuendamist kontrolli kohandatud integratsioone.** Kohandatud
+komponendid on tavaline põhjus, miks HA pärast Core'i uuendust ei käivitu.
+Selles instantsis tähendab see **Better Thermostati** (HACS) ja **Home Assistant
+MCP Serverit**: veendu, et versioon, kuhu liigud, toetab sihtversiooni Core'ist.
+Kui ei toeta, uuenda kõigepealt integratsiooni või hoia Core tagasi.
 
-**The recorder database migration is the slow part.** Some Core releases
-change the recorder schema and migrate the database *after* HA has already
-started. During that migration HA is reachable but sluggish, and history and
-the logbook are incomplete. On a long-lived database this runs for anything
-from a few minutes to several hours. **Do not restart HA, and do not reboot the
-VM, while it is running** — an interrupted migration is how the database gets
-corrupted. Watch the log for the migration to report finished; only then judge
-whether the update worked.
+**Recorderi andmebaasi migratsioon on aeglane osa.** Mõned Core'i väljalasked
+muudavad recorderi skeemi ja migreerivad andmebaasi *pärast* seda, kui HA on
+juba käivitunud. Migratsiooni ajal on HA kättesaadav, aga aeglane, ning ajalugu
+ja logiraamat on puudulikud. Pikalt kasutusel olnud andmebaasi puhul kestab see
+mõnest minutist mitme tunnini. **Ära tee HA-le restarti ega VM-ile
+alglaadimist, kui see käib** — katkestatud migratsioon on see, kuidas andmebaas
+rikutuks saab. Jälgi logist, kuni migratsioon teatab lõpetamisest; alles siis
+hinda, kas uuendus õnnestus.
 
-Verify: HA restarts, Settings → System → Repairs is clean, the garage
-automations still show as available (no `unavailable` entities). Give entities
-a few minutes to repopulate before treating an `unavailable` one as broken.
+Kontroll: HA käivitub, Seaded → Süsteem → Parandused on puhas, garaaži
+automaatikad on endiselt saadaval (`unavailable` olekus olemeid ei ole). Anna
+olemitele paar minutit taastumiseks, enne kui pead `unavailable` olekut rikkeks.
 
-## Step 2 – Home Assistant Operating System
+## Samm 2 – Home Assistant Operating System
 
-Settings → System → Updates → *Home Assistant Operating System* → Update.
+Seaded → Süsteem → Uuendused → *Home Assistant Operating System* → Uuenda.
 
-This reboots the whole appliance. Expect the VM to be unreachable for several
-minutes — the download runs first, then the reboot, and the first boot on a new
-OS version is slower than usual. **Do not force-stop the VM from Proxmox
-because the UI has not come back yet**; give it a good 15 minutes before
-treating it as hung. Do not run this step remotely unless you can reach the
-Proxmox console.
+See teeb kogu seadmele alglaadimise. Arvesta, et VM on mitu minutit
+kättesaamatu — kõigepealt käib allalaadimine, siis alglaadimine, ja esimene boot
+uue OS-i versiooniga on tavalisest aeglasem. **Ära peata VM-i Proxmoxist jõuga
+sellepärast, et kasutajaliides pole veel tagasi tulnud** — anna vähemalt 15
+minutit, enne kui pead seda kinnijooksnuks. Ära tee seda sammu eemalt, kui sa ei
+pääse Proxmoxi konsoolile.
 
-Verify: VM boots, HA UI returns, Settings → System → Hardware still lists the
-Zigbee coordinator (a USB passthrough that silently drops after a reboot is the
-failure mode to watch for here).
+Kontroll: VM käivitub, HA kasutajaliides tuleb tagasi, Seaded → Süsteem →
+Riistvara näitab endiselt Zigbee koordinaatorit (siin tuleb jälgida just seda,
+et USB läbiandmine ei kaoks pärast alglaadimist märkamatult ära).
 
-## Step 3 – Add-ons
+## Samm 3 – Lisandid
 
-Update one at a time, verifying between each:
+Uuenda ükshaaval, kontrollides iga uuenduse järel:
 
-1. **Zigbee2MQTT** — the highest-risk add-on. Confirm `coordinator_backup.json`
-   is current (Step 0), read the Z2M release notes for configuration migrations,
-   then update. Verify: add-on starts, and a round-trip works (toggle one
-   mains-powered device from HA and see the state come back).
+1. **Zigbee2MQTT** — kõige suurema riskiga lisand. Veendu, et
+   `coordinator_backup.json` on värske (samm 0), loe Z2M väljalaskemärkmetest
+   konfiguratsiooni migratsioonide kohta ja siis uuenda. Kontroll: lisand
+   käivitub ja edasi-tagasi käsklus töötab (lülita HA-st mõnda võrgutoitel
+   seadet ja vaata, kas olek tuleb tagasi).
 
-   **Do not expect the whole Zigbee network back immediately.** Mains-powered
-   routers rejoin within minutes. Battery devices only report when they next
-   wake up, which can be hours — a battery sensor still showing as unavailable
-   the same evening is normal and is not evidence that the update failed. Do
-   not re-pair anything on day one; re-pairing a device that was going to come
-   back on its own only makes the mesh worse.
-2. **Grafana** — low risk. Verify: dashboards render and the Prometheus data
-   source is still connected (see `monitoring/grafana/README.md`).
-3. **Home Assistant MCP Server** — verify the MCP client can still list tools
-   after the restart.
+   **Ära oota kogu Zigbee võrku kohe tagasi.** Võrgutoitel ruuterid liituvad
+   uuesti mõne minutiga. Patareitoitel seadmed raporteerivad alles siis, kui nad
+   järgmine kord ärkavad — see võib võtta tunde. Patareiandur, mis on samal
+   õhtul veel `unavailable`, on normaalne ega tõenda, et uuendus ebaõnnestus.
+   Ära seo esimesel päeval midagi uuesti: seadme uuesti sidumine, mis oleks
+   niikuinii ise tagasi tulnud, ainult halvendab mesh-võrku.
+2. **Grafana** — madal risk. Kontroll: töölauad renderduvad ja Prometheuse
+   andmeallikas on endiselt ühendatud (vaata `monitoring/grafana/README.md`).
+3. **Home Assistant MCP Server** — kontrolli, et MCP klient suudab pärast
+   taaskäivitust endiselt tööriistu loetleda.
 
-## Step 4 – Custom integrations (HACS)
+## Samm 4 – Kohandatud integratsioonid (HACS)
 
-**Better Thermostat**: update via HACS, then restart Home Assistant. Verify the
-climate entities are back and are not stuck in `unavailable`.
+**Better Thermostat**: uuenda HACS-i kaudu, seejärel taaskäivita Home Assistant.
+Kontrolli, et kliimaolemid on tagasi ega ole jäänud `unavailable` olekusse.
 
-Better Thermostat holds calibration state that is re-established after a
-restart, and that takes a full heating cycle — the valve position looking wrong
-in the first minutes after the restart is expected, not a fault. Check that the
-target temperature actually reaches the valve, then leave it alone for a cycle
-before concluding anything.
+Better Thermostat hoiab kalibratsiooniolekut, mis taastub pärast taaskäivitust,
+ja see võtab terve küttetsükli — ventiili asend võib esimestel minutitel pärast
+taaskäivitust vale välja näha, ja see on ootuspärane, mitte rike. Kontrolli, et
+seatud temperatuur jõuab tegelikult ventiilini, ja jäta siis üheks tsükliks
+rahule, enne kui midagi järeldad.
 
-## Step 5 – Shelly device firmware (last, one at a time)
+## Samm 5 – Shelly seadmete püsivara (viimasena, ükshaaval)
 
-Device firmware is updated **after** the platform is confirmed healthy, never
-in the same pass. A failed flash leaves the device offline until it is power
-cycled by hand.
+Seadmete püsivara uuendatakse **pärast** seda, kui platvormi tervis on
+kinnitatud, mitte kunagi samas käigus. Ebaõnnestunud välkimine jätab seadme
+võrgust välja, kuni sellel käsitsi voolu ei katkestata.
 
-For each device: check what it controls, confirm the load is idle, update,
-wait for it to come back, verify it responds from HA. Then move to the next.
+Iga seadme puhul: vaata, mida see juhib, veendu, et koormus on jõude, uuenda,
+oota, kuni seade tagasi tuleb, kontrolli, et see HA-st vastab. Alles siis järgmine.
 
-**Wait out each device before starting the next one.** A Shelly reboots and
-reconnects to Wi-Fi after flashing, which takes a few minutes; a Gen3 doing a
-two-stage update takes longer and can look dead in between. **Never cut power
-to a Shelly that is mid-update** — that is the one reliable way to brick it.
-Budget 5–10 minutes per device and do not batch them.
+**Oota iga seade lõpuni ära, enne kui järgmisega alustad.** Shelly teeb pärast
+välkimist alglaadimise ja ühendub Wi-Fi-ga uuesti, mis võtab mõne minuti;
+Gen3 kaheastmeline uuendus võtab kauem ja võib vahepeal surnud välja näha.
+**Ära kunagi katkesta voolu Shellyl, mille uuendus on pooleli** — see on ainus
+kindel viis see ära rikkuda. Arvesta 5–10 minutit seadme kohta ja ära tee neid
+partiidena.
 
-Current garage devices:
+Praegused garaaži seadmed:
 
-| Device | Model | Controls | Precondition |
+| Seade | Mudel | Mida juhib | Eeltingimus |
 | --- | --- | --- | --- |
-| `K1 Max – kapi vent` | Shelly 1 Mini | Cabinet fan | Printer idle and cool |
-| `K1 Max – printeri toide` | Shelly 1PM | Printer mains power | **No print running.** Cutting power mid-print destroys the job |
-| `Kapi all lambid` | Shelly 1 Mini | Under-cabinet lights | Nobody working in the cabinet |
-| `shelly1minig3-54320468c06c` | Shelly 1 Mini Gen3 | Unidentified — **identify before updating** | Load known and idle |
-| `shelly1minig3-dcda0ce25a78` | Shelly 1 Mini Gen3 | Unidentified — **identify before updating** | Load known and idle |
+| `K1 Max – kapi vent` | Shelly 1 Mini | Kapi ventilaator | Printer jõude ja jahtunud |
+| `K1 Max – printeri toide` | Shelly 1PM | Printeri võrgutoide | **Ükski print ei tohi käia.** Voolu katkestamine keset printimist hävitab töö |
+| `Kapi all lambid` | Shelly 1 Mini | Kapialused valgustid | Keegi ei tööta kapi juures |
+| `shelly1minig3-54320468c06c` | Shelly 1 Mini Gen3 | Tuvastamata — **tuvasta enne uuendamist** | Koormus teada ja jõude |
+| `shelly1minig3-dcda0ce25a78` | Shelly 1 Mini Gen3 | Tuvastamata — **tuvasta enne uuendamist** | Koormus teada ja jõude |
 
-Two devices still carry factory hostnames. Name them in Home Assistant before
-updating them — an unnamed relay is an unknown load, and updating an unknown
-load is how the printer loses power mid-print.
+Kaks seadet kannavad endiselt tehase hostinimesid. Anna neile Home Assistantis
+nimed, enne kui neid uuendad — nimetu relee on tundmatu koormus, ja tundmatu
+koormuse uuendamine on täpselt see, kuidas printer keset tööd voolu kaotab.
 
-## Step 6 – Close out
+## Samm 6 – Lõpetamine
 
-1. Confirm Settings → System → Updates is empty (or that anything left is
-   deliberately held, with the reason logged).
-2. Check Settings → System → Repairs and the error log.
-3. Delete the Proxmox snapshot from Step 0.
-4. Add an entry to `docs/operations/home-assistant-update-log.md`.
+1. Veendu, et Seaded → Süsteem → Uuendused on tühi (või et allesjäänu on
+   teadlikult tagasi hoitud ja põhjus on logitud).
+2. Vaata üle Seaded → Süsteem → Parandused ja vealogi.
+3. Kustuta sammus 0 tehtud Proxmoxi snapshot.
+4. Lisa kanne faili `docs/operations/home-assistant-update-log.md`.
 
-## Slow is not broken
+## Aeglane ei tähenda katki
 
-Most "the update broke everything" reports are an operator intervening too
-early. Before acting, check whether what you are seeing is on this list:
+Enamik „uuendus lõhkus kõik ära" teateid on operaator, kes sekkus liiga vara.
+Enne kui midagi ette võtad, vaata, kas see, mida sa näed, on siin nimekirjas:
 
-| What you see | Normal wait before it is a problem |
+| Mida sa näed | Kaua on normaalne oodata, enne kui see on probleem |
 | --- | --- |
-| HA sluggish, history gaps after a Core update | Until the recorder migration finishes — minutes to hours. Do not restart |
-| VM unreachable after the OS update | ~15 min, including download and a slow first boot |
-| Entities `unavailable` right after a restart | A few minutes while they repopulate |
-| Battery Zigbee devices missing after a Z2M update | Until they next wake — often hours. Do not re-pair |
-| Valve position looks wrong after Better Thermostat | One full heating cycle |
-| A Shelly offline right after flashing | Several minutes. Never cut its power meanwhile |
+| HA aeglane, ajaloos augud pärast Core'i uuendust | Kuni recorderi migratsioon lõpeb — minutid kuni tunnid. Ära tee restarti |
+| VM kättesaamatu pärast OS-i uuendust | ~15 min, sh allalaadimine ja aeglane esimene boot |
+| Olemid `unavailable` kohe pärast taaskäivitust | Paar minutit, kuni need taastuvad |
+| Patareitoitel Zigbee seadmed puudu pärast Z2M uuendust | Kuni nad järgmine kord ärkavad — sageli tunnid. Ära seo uuesti |
+| Ventiili asend paistab vale pärast Better Thermostati | Üks täielik küttetsükkel |
+| Shelly võrgust väljas kohe pärast välkimist | Mitu minutit. Ära vahepeal voolu katkesta |
 
-If it is still wrong after the wait, then it is a fault — see below.
+Kui pärast ootamist on ikka valesti, siis on tegu rikkega — vaata allpool.
 
-## If it breaks
+## Kui midagi läheb katki
 
-| Symptom | Action |
+| Sümptom | Tegevus |
 | --- | --- |
-| HA does not start after Core update | Restore the HA backup, or roll back Core from the CLI: `ha core update --version <previous>` |
-| Whole appliance unreachable after OS update | Proxmox console; if unrecoverable, restore the snapshot from Step 0 |
-| Zigbee devices all gone after Z2M update | Restore `coordinator_backup.json` and pin the previous Z2M version |
-| Zigbee coordinator missing after reboot | Check USB passthrough on the VM in Proxmox before re-pairing anything |
-| Shelly offline after firmware update | Power cycle at the breaker; if still dead, factory reset and re-adopt |
+| HA ei käivitu pärast Core'i uuendust | Taasta HA varukoopia või keri Core käsurealt tagasi: `ha core update --version <eelmine>` |
+| Kogu seade kättesaamatu pärast OS-i uuendust | Proxmoxi konsool; kui ei taastu, taasta sammu 0 snapshot |
+| Kõik Zigbee seadmed kadunud pärast Z2M uuendust | Taasta `coordinator_backup.json` ja fikseeri eelmine Z2M versioon |
+| Zigbee koordinaator puudu pärast alglaadimist | Kontrolli Proxmoxis VM-i USB läbiandmist, enne kui midagi uuesti seod |
+| Shelly võrgust väljas pärast püsivara uuendust | Katkesta kaitsmest vool; kui ikka surnud, tee tehaseseadete taastamine ja lisa uuesti |
