@@ -207,6 +207,7 @@ Start with:
 - `how-to-enable-docker.md`
 - `ssh-key-rotation.md`
 - `host-recovery.md`
+- `home-assistant-updates.md`
 
 **If it is not written there, it is not supported.**
 
