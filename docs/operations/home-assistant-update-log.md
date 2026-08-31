@@ -49,5 +49,13 @@ Notification: *"🔧 Garaaž HA — uuendusi ootel — 11 uuendust"*.
 - Devices #10 and #11 still carry factory hostnames. Identify and rename them
   in Home Assistant before flashing.
 
+**Planned sessions:** not one sitting. Suggested split — session A: #1–#2
+(Core + OS, the long ones, budget a half-day for the recorder migration alone);
+session B: #3–#6 (add-ons + Better Thermostat); session C: #7–#11 (Shelly
+firmware, on site, one device at a time). Splitting makes it obvious which
+change caused a problem.
+
 **Notes:** Physical access to the garage is required for the Shelly firmware
-updates (#7–#11). Do not start that step remotely.
+updates (#7–#11). Do not start that step remotely. Allow up to 24 hours after
+the last change before calling the batch done — battery Zigbee devices only
+report when they next wake.
