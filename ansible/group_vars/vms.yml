@@ -21,4 +21,3 @@ prometheus_enabled: false  # Set to true to enable Prometheus on monitoring VM
 
 # Grafana monitoring (optional)
 grafana_enabled: false  # Set to true to enable Grafana on monitoring VM
-

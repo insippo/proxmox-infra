@@ -10,4 +10,3 @@ docker_users:
 
 # Example: More permissive settings for lab
 # vm_timezone: "America/New_York"  # Override default timezone if needed
-
