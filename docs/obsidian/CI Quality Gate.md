@@ -12,7 +12,7 @@ repo: insippo/proxmox-infra
 source: docs/agent-environment.md
 workflow: .github/workflows/ci.yml
 up: "[[Agent Environment]]"
-status: failing
+status: fixed-pending-merge
 ---
 
 # CI Quality Gate
@@ -26,16 +26,16 @@ Defined in `.github/workflows/ci.yml`: `ansible-lint`, `terraform fmt -check`,
 > [!note] The reviewer is a machine, not the agent's own judgement.
 > An agent may not merge on the grounds that it believes the work is correct.
 
-## Current state: broken since inception
+## Was broken since inception — now fixed, pending merge
 
-> [!bug] `Ansible Lint` has failed on every run of the quality gate
+> [!bug] `Ansible Lint` failed on every run of the quality gate
 > All 19 runs on `master`, from run #1 (`Add basic CI quality gate for Ansible and Terraform`)
-> onward. The `terraform fmt` and `terraform validate` jobs pass.
+> onward. The `terraform fmt` and `terraform validate` jobs always passed.
 
 A gate that rejects everything gates nothing. It cannot distinguish a good change from a bad one,
-so nobody can use it as a merge condition, and in practice it is ignored.
+so nobody can use it as a merge condition, and in practice it was ignored.
 
-### Known causes
+### Causes
 
 1. **Roles cannot be resolved.** `roles_path` is not configured, so `ansible-lint` looks under
    `ansible/playbooks/roles` and never finds `ansible/roles/`.
@@ -48,18 +48,26 @@ so nobody can use it as a merge condition, and in practice it is ignored.
    `var-naming[no-role-prefix]`, `no-handler`, `command-instead-of-module`, plus
    `yaml[trailing-spaces]` and `yaml[empty-lines]`.
 
-### Proposed fix
+### The fix
 
-- [ ] Add `ansible/ansible.cfg` with `roles_path = roles`
-- [ ] Add `ansible-galaxy collection install ansible.posix` to the lint job, ideally via a
-      committed `requirements.yml` so local runs match CI
-- [ ] Decide explicitly on the profile: fix the findings, or drop to `profile: moderate` and
-      re-add rules as the roles are cleaned up
-- [ ] Fix trailing whitespace and blank lines regardless — mechanical, no judgement needed
+- [x] `ansible.cfg` at the repository root with `roles_path = ansible/roles`
+- [x] `ansible/requirements.yml` declaring `ansible.posix` and `community.general`, installed
+      by the lint job so local runs match CI
+- [x] `production` profile findings resolved: `--fix` formatting, the role-prefix rename, and
+      two deviations annotated with `noqa` and a stated reason rather than silently relaxed
+- [x] `ansible.builtin.timezone` → `community.general.timezone` — it is not in ansible-core and
+      would have failed at runtime, not only in the linter
 
-> [!warning] This blocks everything else
+Verified: `Profile 'production' was required, and it passed`, 0 failures. All three playbooks
+now pass `--syntax-check`; none did before.
+
+> [!warning] Still blocks everything else until merged
 > Until the gate is green on `master`, "CI is green" is not a usable metric and no automated
 > identity should be granted anything beyond read access.
+
+> [!tip] Worth adding
+> The lint job installs `ansible-lint` unpinned. A future release adding rules can turn the gate
+> red again with no change to this repository. Pinning it removes that failure mode.
 
 ## Related
 

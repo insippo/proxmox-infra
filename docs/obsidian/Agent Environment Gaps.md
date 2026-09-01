@@ -20,9 +20,10 @@ items, not claims about current state.
 
 > [!caution] Close these before granting any agent scheduled or unattended access to the hosts.
 
-- [ ] **The quality gate has never passed.** `Ansible Lint` has failed on all 19 runs on
-      `master`. Fix `roles_path`, install `ansible.posix` in CI, and either satisfy or explicitly
-      relax the `production` profile. **This blocks every other item here.** → [[CI Quality Gate]]
+- [x] **The quality gate had never passed.** `Ansible Lint` failed on all 19 runs on `master`.
+      Fixed: `roles_path` configured, collections declared and installed in CI, `production`
+      profile findings resolved. **Still blocks every other item here until it reaches
+      `master`.** → [[CI Quality Gate]]
 - [ ] **No plan-only Proxmox token documented.** `docs/terraform-proxmox-api-token.md` describes
       only the full-write operator token. Add the `terraform-planner` role and the `agent@pve`
       user. → [[Plan-Only Proxmox Token]]
