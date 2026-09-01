@@ -222,6 +222,20 @@ Every push runs:
 
 **Broken code should never reach production.**
 
+## Automation and AI agents
+
+If anything other than a human ever runs against this infrastructure — CI, a script on a
+timer, or an AI agent — read:
+
+**`docs/agent-environment.md`**
+
+It defines what an automated identity is allowed to do and, more importantly, how that is
+enforced: a plan-only Proxmox token, an unprivileged SSH user, branch protection.
+
+**Boundaries belong in permissions, not in prompts.**
+
+**An instruction is not a control. A missing credential is.**
+
 ## Final rule
 
 If you catch yourself thinking:
