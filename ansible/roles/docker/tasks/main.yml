@@ -69,4 +69,3 @@
 - name: Display Docker version
   ansible.builtin.debug:
     msg: "Docker installed: {{ docker_version.stdout | default('Unable to determine version') }}"
-
