@@ -1,0 +1,6 @@
+---
+# Collections required by the playbooks and roles in this repository.
+# Install with: ansible-galaxy collection install -r ansible/requirements.yml
+collections:
+  - name: ansible.posix       # authorized_key, sysctl
+  - name: community.general   # timezone

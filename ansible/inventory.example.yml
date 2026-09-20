@@ -37,4 +37,3 @@ all:
         ansible_user: "admin"
         ansible_port: 22
         ansible_ssh_common_args: '-o StrictHostKeyChecking=accept-new'
-

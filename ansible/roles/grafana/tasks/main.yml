@@ -84,7 +84,7 @@
     paths: "{{ playbook_dir }}/../../../monitoring/grafana/dashboards"
     patterns: "*.json"
     file_type: file
-  register: dashboard_files
+  register: grafana_dashboard_files
 
 - name: Deploy dashboard JSON files
   ansible.builtin.copy:
@@ -93,9 +93,9 @@
     owner: root
     group: root
     mode: '0644'
-  loop: "{{ dashboard_files.files }}"
+  loop: "{{ grafana_dashboard_files.files }}"
   notify: Restart grafana
-  when: dashboard_files.matched > 0
+  when: grafana_dashboard_files.matched > 0
 
 - name: Ensure Grafana service is enabled and running
   ansible.builtin.service:
@@ -103,7 +103,9 @@
     state: started
     enabled: true
 
-- name: Verify Grafana is listening on port 3000
+# A post-install verification, not a state change: it must run inline so a
+# failed install fails the play here, rather than at the end with the handlers.
+- name: Verify Grafana is listening on port 3000  # noqa: no-handler
   ansible.builtin.wait_for:
     port: 3000
     host: localhost
@@ -111,4 +113,3 @@
     timeout: 10
   delegate_to: localhost
   when: grafana_installed.changed
-

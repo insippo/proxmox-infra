@@ -1,0 +1,4 @@
+# pain.001 tee ei vaja midagi peale Python 3.11 standardteegi.
+# Allpool olev on vajalik ainult SEB XS2A API tee jaoks.
+requests>=2.31
+cryptography>=42.0

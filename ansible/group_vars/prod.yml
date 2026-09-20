@@ -10,4 +10,3 @@ docker_users: []  # Empty by default - add users explicitly if needed
 # Example: Production-specific overrides
 # vm_timezone: "UTC"  # Explicit UTC for production
 # Additional production hardening can be added here
-

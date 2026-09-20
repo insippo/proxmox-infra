@@ -1,0 +1,40 @@
+# bankprep seadistus. Kopeeri repo juurde failiks bank.toml
+# (bank.toml on .gitignore-s - sinna kaivad paris andmed).
+
+[debtor]
+# Maksja = sinu ettevote. Nimi lappub selle nimega, mis on pangas.
+name = "Soetuppa OU"
+iban = "EE382200221020145685"
+bic  = "EEUHEE2X"
+
+[output]
+dir = "out"
+
+[seb]
+# sandbox = SEB testkeskkond, production = paris pank.
+environment = "sandbox"
+# base_url = "https://api.sandbox.baltics.sebgroup.com"   # ainult kui vaikevaartus ei sobi
+
+# APP andmed developer.baltics.sebgroup.com portaalist.
+client_id = ""
+# Salasona EI OLE siin failis - ainult keskkonnamuutuja nimi:
+client_secret_env = "SEB_CLIENT_SECRET"
+
+# SCA (Smart-ID / Mobiil-ID) suunamise aadressid.
+redirect_uri     = "https://localhost:8443/seb/callback"
+tpp_nok_redirect_uri = "https://localhost:8443/seb/callback?error=1"
+
+# eIDAS sertifikaadid kvalifitseeritud usaldusteenuse pakkujalt.
+# QWAC  = TLS-kliendisertifikaat (kanal)
+# QSEALC = sonumi allkirjastamine (Signature + Digest paIsed)
+qwac_cert  = "secrets/qwac.pem"
+qwac_key   = "secrets/qwac.key"
+qseal_cert = "secrets/qseal.pem"
+qseal_key  = "secrets/qseal.key"
+qseal_key_id = ""
+
+payment_product = "sepa-credit-transfers"
+
+# TURVALUKK. Kuni see on false, ei lahe uhtegi paringut panka -
+# paring kirjutatakse ainult faili out/ kataloogi.
+allow_live = false
