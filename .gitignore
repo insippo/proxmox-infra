@@ -37,3 +37,15 @@ secrets/
 .env
 .env.local
 
+
+# Maksed / pangaliides (payments/)
+bank.toml
+payments/bank.toml
+out/
+payments/out/
+*.pem
+*.key
+*.p12
+*.pfx
+__pycache__/
+*.pyc

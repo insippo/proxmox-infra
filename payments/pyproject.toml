@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bankprep"
+version = "0.1.0"
+description = "Maksete ettevalmistamine: SEPA pain.001 ja SEB Baltics XS2A"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+# Ainult API-tee jaoks. pain.001 tee tootab ilma nendeta.
+api = ["requests>=2.31", "cryptography>=42.0"]
+
+[project.scripts]
+bankprep = "bankprep.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["bankprep*"]

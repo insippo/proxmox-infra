@@ -54,10 +54,14 @@ This repository is for people who want to:
 proxmox-infra/
 ├── ansible/          – all configuration logic
 ├── terraform/        – VM lifecycle (create / destroy)
+├── payments/         – payment preparation (SEPA pain.001 / SEB XS2A)
 ├── docs/             – architecture, policy, operations
 ├── .github/          – CI (lint + validate)
 └── README.md
 ```
+
+`payments/` is self-contained and touches no infrastructure. See
+`payments/README.md` and `docs/payments/seb-liides.md`.
 
 **If you don't know where something belongs, stop and look here again.**
 
