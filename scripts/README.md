@@ -101,3 +101,36 @@ Converts VM 9000 to template after installation.
 - Template ID 9000 is hardcoded (matches Terraform configuration)
 - Storage and bridge names come from environment variables (no hardcoding)
 
+
+## dify-query.py
+
+Queries a self-hosted Dify app (chat or workflow) from the command line. Standard
+library only, so it runs on any host that can reach the Dify instance -- a
+workstation, a VM on the Proxmox cluster, or a cron job.
+
+**Setup:**
+
+```bash
+export DIFY_API_BASE="https://dify.example.ee/v1"
+export DIFY_API_KEY="app-..."        # app API key, not a workspace token
+```
+
+**Usage:**
+
+```bash
+# Chat app
+./scripts/dify-query.py "Which invoices are still unpaid?"
+
+# Workflow app with input variables
+./scripts/dify-query.py --mode workflow --input question="300l buffer" --input mailbox=arved
+
+# Raw JSON response
+./scripts/dify-query.py --json "last invoices" > answer.json
+```
+
+Options: `--mode chat|workflow`, `--input KEY=VALUE` (repeatable),
+`--conversation-id`, `--timeout`, `--json`, `--base`, `--key`, `--user`.
+
+**Note:** a sandboxed session whose egress policy does not allow the Dify host
+gets a proxy `403` on CONNECT. Run the script where the host is reachable, or
+add the host to the environment's network allowlist.
